@@ -15,13 +15,13 @@
 
 #import <FBControlCore/FBControlCore.h>
 
-#import "FBSimDeviceWrapper.h"
 #import "FBSimulator+Helpers.h"
 #import "FBSimulator.h"
 #import "FBSimulatorError.h"
 #import "FBSimulatorInteraction+Applications.h"
 #import "FBSimulatorInteraction+Private.h"
 #import "FBSimulatorPool.h"
+#import "FBAddVideoStrategy.h"
 
 @implementation FBSimulatorInteraction (Upload)
 
@@ -73,7 +73,7 @@
 
   return [self interactWithBootedSimulator:^ BOOL (NSError **error, FBSimulator *simulator) {
     NSError *innerError = nil;
-    BOOL success = [simulator.simDeviceWrapper addVideos:videoPaths error:&innerError];
+    BOOL success = [[FBAddVideoStrategy strategyWithSimulator:simulator] addVideos:videoPaths error:&innerError];
     if (!success) {
       return [[[FBSimulatorError describeFormat:@"Failed to upload videos at paths %@", videoPaths]
         causedBy:innerError]

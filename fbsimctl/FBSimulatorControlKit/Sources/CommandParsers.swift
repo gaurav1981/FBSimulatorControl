@@ -92,7 +92,7 @@ extension Parser {
     let desc = PrimitiveDesc(name: "application", desc: "Path to an application.")
     return Parser<FBApplicationDescriptor>.single(desc) { token in
       do {
-        return try FBApplicationDescriptor.application(withPath: token)
+        return try FBApplicationDescriptor.userApplication(withPath: token)
       } catch let error as NSError {
         throw ParseError.custom("Could not get an app \(token) \(error.description)")
       }
@@ -182,7 +182,6 @@ extension FBSimulatorManagementOptions : Parsable {
       self.killSpuriousSimulatorsOnFirstStartParser,
       self.ignoreSpuriousKillFailParser,
       self.killSpuriousCoreSimulatorServicesParser,
-      self.useSimDeviceTimeoutResilianceParser
     ])
       .sectionize("management", "Simulator Management", "")
   }
@@ -210,11 +209,6 @@ extension FBSimulatorManagementOptions : Parsable {
   static var killSpuriousCoreSimulatorServicesParser: Parser<FBSimulatorManagementOptions> {
     return Parser<FBSimulatorManagementOptions>
       .ofFlag("kill-spurious-services", .killSpuriousCoreSimulatorServices, "")
-  }
-
-  static var useSimDeviceTimeoutResilianceParser: Parser<FBSimulatorManagementOptions> {
-    return Parser<FBSimulatorManagementOptions>
-      .ofFlag("timeout-resiliance", .useSimDeviceTimeoutResiliance, "")
   }
 }
 

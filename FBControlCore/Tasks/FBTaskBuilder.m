@@ -14,7 +14,6 @@
 #import "FBTask.h"
 #import "FBRunLoopSpinner.h"
 #import "FBTaskConfiguration.h"
-#import "FBLineReader.h"
 
 @interface FBTaskBuilder ()
 
@@ -75,13 +74,19 @@
   return self;
 }
 
+- (instancetype)withEnvironment:(NSDictionary<NSString *, NSString *> *)environment
+{
+  NSParameterAssert(environment);
+  self.environment = environment;
+  return self;
+}
+
 - (instancetype)withEnvironmentAdditions:(NSDictionary<NSString *, NSString *> *)environment
 {
   NSParameterAssert(environment);
   NSMutableDictionary<NSString *, NSString *> *dictionary = [self.environment mutableCopy];
   [dictionary addEntriesFromDictionary:environment];
-  self.environment = [dictionary copy];
-  return self;
+  return [self withEnvironment:[dictionary copy]];
 }
 
 - (instancetype)withStdOutInMemory
@@ -136,12 +141,12 @@
 
 - (instancetype)withStdOutLineReader:(void (^)(NSString *))reader
 {
-  return [self withStdOutConsumer:[FBLineReader lineReaderWithConsumer:reader]];
+  return [self withStdOutConsumer:[FBLineFileDataConsumer lineReaderWithConsumer:reader]];
 }
 
 - (instancetype)withStdErrLineReader:(void (^)(NSString *))reader
 {
-  return [self withStdErrConsumer:[FBLineReader lineReaderWithConsumer:reader]];
+  return [self withStdErrConsumer:[FBLineFileDataConsumer lineReaderWithConsumer:reader]];
 }
 
 - (instancetype)withStdOutToLogger:(id<FBControlCoreLogger>)logger

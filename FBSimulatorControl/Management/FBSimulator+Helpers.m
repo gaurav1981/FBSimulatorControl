@@ -14,7 +14,6 @@
 
 #import <FBControlCore/FBControlCore.h>
 
-#import "FBSimDeviceWrapper.h"
 #import "FBSimulator+Private.h"
 #import "FBSimulatorError.h"
 #import "FBSimulatorHistory+Queries.h"
@@ -24,6 +23,9 @@
 #import "FBSimulatorProcessFetcher.h"
 #import "FBSimulatorSet.h"
 
+static NSString *const ApplicationTypeKey = @"ApplicationType";
+static NSString *const ApplicationPathKey = @"Path";
+
 @implementation FBSimulator (Helpers)
 
 #pragma mark Properties
@@ -31,11 +33,6 @@
 - (FBSimulatorInteraction *)interact
 {
   return [FBSimulatorInteraction withSimulator:self];
-}
-
-- (FBSimDeviceWrapper *)simDeviceWrapper
-{
-  return [FBSimDeviceWrapper withSimulator:self configuration:self.set.configuration processFetcher:self.processFetcher];
 }
 
 - (FBSimulatorLaunchCtl *)launchctl
@@ -61,7 +58,7 @@
 {
   NSMutableArray<FBApplicationDescriptor *> *applications = [NSMutableArray array];
   for (NSDictionary *appInfo in [[self.device installedAppsWithError:nil] allValues]) {
-    FBApplicationDescriptor *application = [FBApplicationDescriptor applicationWithPath:appInfo[@"Path"] error:nil];
+    FBApplicationDescriptor *application = [FBApplicationDescriptor applicationWithPath:appInfo[ApplicationPathKey] installTypeString:appInfo[ApplicationTypeKey] error:nil];
     if (!application) {
       continue;
     }
@@ -130,8 +127,9 @@
   if (!appInfo) {
     return [FBSimulatorError failWithError:innerError errorOut:error];
   }
-  NSString *appPath = appInfo[@"Path"];
-  FBApplicationDescriptor *application = [FBApplicationDescriptor applicationWithPath:appPath error:&innerError];
+  NSString *appPath = appInfo[ApplicationPathKey];
+  NSString *typeString = appInfo[ApplicationTypeKey];
+  FBApplicationDescriptor *application = [FBApplicationDescriptor applicationWithPath:appPath installTypeString:typeString error:&innerError];
   if (!application) {
     return [[[[FBSimulatorError
       describeFormat:@"Failed to get App Path of %@ at %@", bundleID, appPath]
@@ -152,7 +150,7 @@
     return [FBSimulatorError failBoolWithError:innerError errorOut:error];
   }
 
-  return [appInfo[@"ApplicationType"] isEqualToString:@"System"];
+  return [appInfo[ApplicationTypeKey] isEqualToString:@"System"];
 }
 
 - (NSString *)homeDirectoryOfApplicationWithBundleID:(NSString *)bundleID error:(NSError **)error
