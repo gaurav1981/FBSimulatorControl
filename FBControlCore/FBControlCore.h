@@ -36,6 +36,7 @@
 #import <FBControlCore/FBFileReader.h>
 #import <FBControlCore/FBInteraction.h>
 #import <FBControlCore/FBiOSTarget.h>
+#import <FBControlCore/FBiOSTargetDiagnostics.h>
 #import <FBControlCore/FBiOSTargetFormat.h>
 #import <FBControlCore/FBiOSTargetPredicates.h>
 #import <FBControlCore/FBiOSTargetQuery.h>
@@ -46,8 +47,8 @@
 #import <FBControlCore/FBProcessFetcher.h>
 #import <FBControlCore/FBProcessInfo.h>
 #import <FBControlCore/FBProcessLaunchConfiguration+Helpers.h>
-#import <FBControlCore/FBProcessLaunchConfiguration+Private.h>
 #import <FBControlCore/FBProcessLaunchConfiguration.h>
+#import <FBControlCore/FBProcessOutputConfiguration.h>
 #import <FBControlCore/FBProcessTerminationStrategy.h>
 #import <FBControlCore/FBRunLoopSpinner.h>
 #import <FBControlCore/FBServiceManagement.h>
@@ -55,6 +56,7 @@
 #import <FBControlCore/FBTask.h>
 #import <FBControlCore/FBTaskBuilder.h>
 #import <FBControlCore/FBTerminationHandle.h>
+#import <FBControlCore/FBVideoRecordingCommands.h>
 #import <FBControlCore/FBWeakFramework+ApplePrivateFrameworks.h>
 #import <FBControlCore/FBWeakFrameworkLoader.h>
 #import <FBControlCore/NSPredicate+FBControlCore.h>

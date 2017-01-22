@@ -197,7 +197,9 @@
     configurationWithBinary:self.simulator.launchCtlBinary
     arguments:arguments
     environment:@{}
-    options:0];
+    output:FBProcessOutputConfiguration.outputToDevNull];
+
+  // Spawn and get the output
   return [[FBAgentLaunchStrategy
     withSimulator:self.simulator]
     launchConsumingStdout:launchConfiguration error:error];

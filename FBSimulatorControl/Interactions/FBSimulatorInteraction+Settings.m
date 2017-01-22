@@ -21,13 +21,6 @@
 
 @implementation FBSimulatorInteraction (Settings)
 
-- (instancetype)prepareForBoot:(FBSimulatorBootConfiguration *)configuration
-{
-  return [[self
-    overridingLocalization:configuration.localizationOverride]
-    setupKeyboard];
-}
-
 - (instancetype)overridingLocalization:(FBLocalizationOverride *)localizationOverride
 {
   if (!localizationOverride) {
@@ -37,7 +30,7 @@
   return [self interactWithShutdownSimulator:^ BOOL (NSError **error, FBSimulator *simulator) {
     return [[FBLocalizationDefaultsModificationStrategy
       strategyWithSimulator:simulator]
-      overideLocalization:localizationOverride error:error];
+      overrideLocalization:localizationOverride error:error];
   }];
 }
 

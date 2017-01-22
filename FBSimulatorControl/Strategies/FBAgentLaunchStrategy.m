@@ -17,6 +17,7 @@
 #import "FBSimulator+Private.h"
 #import "FBSimulatorEventSink.h"
 #import "FBSimulatorError.h"
+#import "FBProcessLaunchConfiguration+Simulator.h"
 #import "FBSimulatorDiagnostics.h"
 #import "FBSimulatorProcessFetcher.h"
 
@@ -56,44 +57,29 @@
   NSFileHandle *stdOutHandle = nil;
   NSFileHandle *stdErrHandle = nil;
 
-  BOOL connectStdout = (agentLaunch.options & FBProcessLaunchOptionsWriteStdout) == FBProcessLaunchOptionsWriteStdout;
-  if (connectStdout) {
-    FBDiagnosticBuilder *builder = [FBDiagnosticBuilder builderWithDiagnostic:[simulator.diagnostics stdOut:agentLaunch]];
-    NSString *path = [builder createPath];
-
-    if (![NSFileManager.defaultManager createFileAtPath:path contents:NSData.data attributes:nil]) {
-      return [[FBSimulatorError
-        describeFormat:@"Could not create stdout at path '%@' for config '%@'", path, agentLaunch]
-        fail:error];
-    }
-    NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:path];
-    if (!fileHandle) {
-      return [[FBSimulatorError
-        describeFormat:@"Could not file handle for stdout at path '%@' for config '%@'", path, self]
-        fail:error];
-    }
-    stdOutDiagnostic = [[builder updatePath:path] build];
-    stdOutHandle = fileHandle;
+  if (![agentLaunch createStdOutDiagnosticForSimulator:simulator diagnosticOut:&stdOutDiagnostic error:error]) {
+    return nil;
   }
-
-  BOOL connectStderr = (agentLaunch.options & FBProcessLaunchOptionsWriteStderr) == FBProcessLaunchOptionsWriteStderr;
-  if (connectStderr) {
-    FBDiagnosticBuilder *builder = [FBDiagnosticBuilder builderWithDiagnostic:[simulator.diagnostics stdErr:agentLaunch]];
-    NSString *path = [builder createPath];
-
-    if (![NSFileManager.defaultManager createFileAtPath:path contents:NSData.data attributes:nil]) {
-      return [[FBSimulatorError
-        describeFormat:@"Could not create stdout at path '%@' for config '%@'", path, agentLaunch]
-        fail:error];
-    }
-    NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:path];
-    if (!fileHandle) {
+  if (stdOutDiagnostic) {
+    NSString *path = stdOutDiagnostic.asPath;
+    stdOutHandle = [NSFileHandle fileHandleForWritingAtPath:path];
+    if (!stdOutHandle) {
       return [[FBSimulatorError
         describeFormat:@"Could not file handle for stdout at path '%@' for config '%@'", path, self]
         fail:error];
     }
-    stdErrDiagnostic = [[builder updatePath:path] build];
-    stdErrHandle = fileHandle;
+  }
+  if (![agentLaunch createStdErrDiagnosticForSimulator:simulator diagnosticOut:&stdErrDiagnostic error:error]) {
+    return nil;
+  }
+  if (stdErrDiagnostic) {
+    NSString *path = stdErrDiagnostic.asPath;
+    stdErrHandle = [NSFileHandle fileHandleForWritingAtPath:path];
+    if (!stdOutHandle) {
+      return [[FBSimulatorError
+        describeFormat:@"Could not file handle for stderr at path '%@' for config '%@'", path, self]
+        fail:error];
+    }
   }
 
   NSDictionary *options = [agentLaunch simDeviceLaunchOptionsWithStdOut:stdOutHandle stdErr:stdErrHandle];
@@ -124,24 +110,43 @@
   // Construct a pipe to stdout and read asynchronously from it.
   // Synchronize on the mutable string.
   NSPipe *stdOutPipe = [NSPipe pipe];
+  FBAccumilatingFileDataConsumer *consumer = [FBAccumilatingFileDataConsumer new];
+  FBFileReader *reader = [FBFileReader readerWithFileHandle:stdOutPipe.fileHandleForReading consumer:consumer];
   NSDictionary *options = [agentLaunch simDeviceLaunchOptionsWithStdOut:stdOutPipe.fileHandleForWriting stdErr:nil];
 
+  // Start reading the pipe
   NSError *innerError = nil;
+  if (![reader startReadingWithError:&innerError]) {
+    return [[[FBSimulatorError
+      describeFormat:@"Could not start reading stdout of %@", agentLaunch]
+      causedBy:innerError]
+      fail:error];
+  }
+
+  // The Process launches and terminates synchronously
   pid_t processIdentifier = [[FBAgentLaunchStrategy withSimulator:self.simulator]
     spawnShortRunningWithPath:agentLaunch.agentBinary.path
     options:options
     timeout:FBControlCoreGlobalConfiguration.fastTimeout
     error:&innerError];
+
+  // Stop reading the pipe
+  if (![reader stopReadingWithError:&innerError]) {
+    return [[[FBSimulatorError
+      describeFormat:@"Could not stop reading stdout of %@", agentLaunch]
+      causedBy:innerError]
+      fail:error];
+  }
+
+  // Fail on non-zero pid.
   if (processIdentifier <= 0) {
     return [[[FBSimulatorError
       describeFormat:@"Running %@ %@ failed", agentLaunch.agentBinary.name, [FBCollectionInformation oneLineDescriptionFromArray:agentLaunch.arguments]]
       causedBy:innerError]
       fail:error];
   }
-  [stdOutPipe.fileHandleForWriting closeFile];
-  NSData *data = [stdOutPipe.fileHandleForReading readDataToEndOfFile];
-  NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-  return [output copy];
+
+  return [[NSString alloc] initWithData:consumer.data encoding:NSUTF8StringEncoding];
 }
 
 #pragma mark Private

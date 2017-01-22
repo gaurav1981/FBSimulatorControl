@@ -82,7 +82,7 @@
     configurationWithBinary:self.defaultsBinary
     arguments:arguments
     environment:@{}
-    options:0];
+    output:FBProcessOutputConfiguration.outputToDevNull];
 
   // Run the write, fail if the write fails.
   FBAgentLaunchStrategy *strategy = [FBAgentLaunchStrategy withSimulator:self.simulator];
@@ -128,7 +128,7 @@
 
 @implementation FBLocalizationDefaultsModificationStrategy
 
-- (BOOL)overideLocalization:(FBLocalizationOverride *)localizationOverride error:(NSError **)error
+- (BOOL)overrideLocalization:(FBLocalizationOverride *)localizationOverride error:(NSError **)error
 {
   return [self modifyDefaultsInDomainOrPath:nil defaults:localizationOverride.defaultsDictionary error:error];
 }
@@ -175,7 +175,11 @@
     exceptions[bundleID] = @(timeout);
   }
   NSDictionary *defaults = @{@"FBLaunchWatchdogExceptions" : [exceptions copy]};
-  return [self modifyDefaultsInDomainOrPath:@"com.apple.springboard" defaults:defaults error:error];
+  return [self
+    amendRelativeToPath:@"Library/Preferences/com.apple.springboard.plist"
+    defaults:defaults
+    managingService:@"com.apple.SpringBoard"
+    error:error];
 }
 
 @end
