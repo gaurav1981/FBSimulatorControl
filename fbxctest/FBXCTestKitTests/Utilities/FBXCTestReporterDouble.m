@@ -11,10 +11,10 @@
 
 @interface FBXCTestReporterDouble ()
 
-@property (nonatomic, strong, readonly) NSMutableArray<NSArray<NSString *> *> *mutableStartedTestCases;
-@property (nonatomic, strong, readonly) NSMutableArray<NSArray<NSString *> *> *mutablePassedTests;
-@property (nonatomic, strong, readonly) NSMutableArray<NSArray<NSString *> *> *mutableFailedTests;
-@property (nonatomic, strong, readonly) NSMutableArray<NSDictionary *> *mutableExternalEvents;
+@property (nonatomic, copy, readonly) NSMutableArray<NSArray<NSString *> *> *mutableStartedTestCases;
+@property (nonatomic, copy, readonly) NSMutableArray<NSArray<NSString *> *> *mutablePassedTests;
+@property (nonatomic, copy, readonly) NSMutableArray<NSArray<NSString *> *> *mutableFailedTests;
+@property (nonatomic, copy, readonly) NSMutableArray<NSDictionary *> *mutableExternalEvents;
 @property (nonatomic, assign, readwrite) BOOL printReportWasCalled;
 
 @end
@@ -67,8 +67,13 @@
   return YES;
 }
 
-- (void)handleExternalEvent:(NSDictionary *)event
+- (void)handleExternalEvent:(NSString *)line
 {
+  NSError *error = nil;
+  NSDictionary *event = [NSJSONSerialization JSONObjectWithData:[line dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&error];
+  if (event == nil) {
+    return;
+  }
   [self.mutableExternalEvents addObject:event];
 }
 
@@ -100,6 +105,16 @@
 }
 
 - (void)testHadOutput:(NSString *)output
+{
+
+}
+
+- (void)processWaitingForDebuggerWithProcessIdentifier:(pid_t)pid
+{
+
+}
+
+- (void)debuggerAttached
 {
 
 }

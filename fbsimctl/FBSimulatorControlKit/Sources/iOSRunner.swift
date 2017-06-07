@@ -32,43 +32,49 @@ struct iOSActionProvider {
     switch action {
     case .diagnose(let query, let format):
       return DiagnosticsRunner(reporter, query, query, format)
-    case .install(let appPath):
-      return iOSTargetRunner(
-        reporter: reporter,
-        name: EventName.Install,
-        subject: ControlCoreSubject(appPath as NSString),
-        interaction: FBCommandInteractions.installApplication(withPath: appPath, command: target)
-      )
+    case .install(let appPath, let codeSign):
+      return iOSTargetRunner.simple(reporter, .install, ControlCoreSubject(appPath as NSString)) {
+        let (extractedAppPath, cleanupDirectory) = try FBApplicationDescriptor.findOrExtract(atPath: appPath)
+        if codeSign {
+          try FBCodesignProvider.codeSignCommandWithAdHocIdentity().recursivelySignBundle(atPath: extractedAppPath)
+        }
+        try target.installApplication(withPath: extractedAppPath)
+        if let cleanupDirectory = cleanupDirectory {
+          try? FileManager.default.removeItem(at: cleanupDirectory)
+        }
+      }
     case .uninstall(let appBundleID):
-      return iOSTargetRunner(reporter, EventName.Uninstall,ControlCoreSubject(appBundleID as NSString)) {
+      return iOSTargetRunner.simple(reporter, .uninstall, ControlCoreSubject(appBundleID as NSString)) {
         try target.uninstallApplication(withBundleID: appBundleID)
       }
-    case .launchApp(let appLaunch):
-      return iOSTargetRunner(
-        reporter: reporter,
-        name: EventName.Launch,
-        subject: ControlCoreSubject(appLaunch),
-        interaction: FBCommandInteractions.launchApplication(appLaunch, command: target)
-      )
+    case .core(let action):
+      return iOSTargetRunner.core(reporter, action.eventName, target, action)
     case .listApps:
-      return iOSTargetRunner(reporter, nil, ControlCoreSubject(target as! ControlCoreValue)) {
+      return iOSTargetRunner.simple(reporter, nil, ControlCoreSubject(target as! ControlCoreValue)) {
         let subject = ControlCoreSubject(target.installedApplications().map { $0.jsonSerializableRepresentation() }  as NSArray)
-        reporter.reporter.reportSimple(EventName.ListApps, EventType.Discrete, subject)
+        reporter.reporter.reportSimple(.listApps, .discrete, subject)
       }
-    case .record(let start):
-      return iOSTargetRunner(
-        reporter: reporter,
-        name: EventName.Record,
-        subject: start,
-        interaction: start ? FBCommandInteractions.startRecording(withCommand: target) : FBCommandInteractions.stopRecording(withCommand: target)
-      )
+    case .record(let record):
+      switch record {
+        case .start(let maybePath):
+          return iOSTargetRunner.handled(reporter, nil, record) {
+            return try target.startRecording(toFile: maybePath)
+          }
+        case .stop:
+          return iOSTargetRunner.simple(reporter, nil, record) {
+            try target.stopRecording()
+          }
+      }
+    case .stream(let configuration, let output):
+      return iOSTargetRunner.handled(reporter, .stream, ControlCoreSubject(configuration)) {
+        let stream = try target.createStream(with: configuration)
+        try stream.startStreaming(output.makeWriter())
+        return stream
+      }
     case .terminate(let bundleID):
-      return iOSTargetRunner(
-        reporter: reporter,
-        name: EventName.Terminate,
-        subject: ControlCoreSubject(bundleID as NSString),
-        interaction: FBCommandInteractions.killApplication(withBundleID: bundleID, command: target)
-      )
+      return iOSTargetRunner.simple(reporter, .terminate, ControlCoreSubject(bundleID as NSString)) {
+        try target.killApplication(withBundleID: bundleID)
+      }
     default:
       return nil
     }
@@ -79,28 +85,45 @@ struct iOSTargetRunner : Runner {
   let reporter: iOSReporter
   let name: EventName?
   let subject: EventReporterSubject
-  let interaction: FBInteractionProtocol
+  let action: () throws -> FBTerminationHandle?
 
-  init(reporter: iOSReporter, name: EventName?, subject: EventReporterSubject, interaction: FBInteractionProtocol) {
+  private init(reporter: iOSReporter, name: EventName?, subject: EventReporterSubject, action: @escaping () throws -> FBTerminationHandle?) {
     self.reporter = reporter
     self.name = name
     self.subject = subject
-    self.interaction = interaction
+    self.action = action
   }
 
-  init(_ reporter: iOSReporter, _ name: EventName?, _ subject: EventReporterSubject, _ action: @escaping (Void) throws -> Void) {
-    self.init(reporter: reporter, name: name, subject: subject, interaction: Interaction(action))
+  static func simple(_ reporter: iOSReporter, _ name: EventName?, _ subject: EventReporterSubject, _ action: @escaping () throws -> Void) -> iOSTargetRunner {
+    return iOSTargetRunner(reporter: reporter, name: name, subject: subject) {
+      try action()
+      return nil
+    }
+  }
+
+  static func core(_ reporter: iOSReporter, _ name: EventName?, _ target: FBiOSTarget, _ action: FBiOSTargetAction) -> iOSTargetRunner {
+    return iOSTargetRunner(reporter: reporter, name: name, subject: ControlCoreSubject(action as! ControlCoreValue)) {
+      return try action.runAction(target: target, reporter: reporter.reporter)
+    }
+  }
+
+  static func handled(_ reporter: iOSReporter, _ name: EventName?, _ subject: EventReporterSubject, _ action: @escaping () throws -> FBTerminationHandle?) -> iOSTargetRunner {
+    return iOSTargetRunner(reporter: reporter, name: name, subject: subject, action: action)
   }
 
   func run() -> CommandResult {
     do {
       if let name = self.name {
-        self.reporter.report(name, EventType.Started, self.subject)
+        self.reporter.report(name, .started, self.subject)
       }
-      try self.interaction.perform()
+      var handles: [FBTerminationHandle] = []
+      if let handle = try self.action() {
+        handles = [handle]
+      }
       if let name = self.name {
-        self.reporter.report(name, EventType.Ended, self.subject)
+        self.reporter.report(name, .ended, self.subject)
       }
+      return CommandResult(outcome: .success(nil), handles: handles)
     } catch let error as NSError {
       return .failure(error.description)
     } catch let error as JSONError {
@@ -108,7 +131,6 @@ struct iOSTargetRunner : Runner {
     } catch {
       return .failure("Unknown Error")
     }
-    return .success(nil)
   }
 }
 
@@ -126,14 +148,14 @@ private struct DiagnosticsRunner : Runner {
   }
 
   func run() -> CommandResult {
-    reporter.reportValue(EventName.Diagnose, EventType.Started, query)
+    reporter.reportValue(.diagnose, .started, query)
     let diagnostics = self.fetchDiagnostics()
-    reporter.reportValue(EventName.Diagnose, EventType.Ended, query)
+    reporter.reportValue(.diagnose, .ended, query)
 
     let subjects: [EventReporterSubject] = diagnostics.map { diagnostic in
       return SimpleSubject(
-        EventName.Diagnostic,
-        EventType.Discrete,
+        .diagnostic,
+        .discrete,
         ControlCoreSubject(diagnostic)
       )
     }

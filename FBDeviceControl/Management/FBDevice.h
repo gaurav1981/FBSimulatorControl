@@ -10,6 +10,7 @@
 #import <Foundation/Foundation.h>
 
 #import <FBControlCore/FBControlCore.h>
+#import <XCTestBootstrap/XCTestBootstrap.h>
 
 @class DVTiOSDevice;
 @class FBDeviceSet;
@@ -23,7 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  Class that wraps DVTAbstractiOSDevice and it's device operator that can perform actions on it.
  */
-@interface FBDevice : NSObject <FBiOSTarget>
+@interface FBDevice : NSObject <FBiOSTarget, FBXCTestCommands>
 
 /**
  The Device Set to which the Device Belongs.
@@ -31,19 +32,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, readonly) FBDeviceSet *set;
 
 /**
- The Logger to Log events with.
- */
-@property (nonatomic, strong, readonly) id<FBControlCoreLogger> logger;
-
-/**
  The DVTDevice, corresponding to the reciever.
  */
 @property (nonatomic, nullable, strong, readonly) DVTiOSDevice *dvtDevice;
-
-/**
- Device operator used to control device
- */
-@property (nonatomic, nullable, strong, readonly) id<FBDeviceOperator> deviceOperator;
 
 /**
  Device's name
@@ -64,13 +55,6 @@ NS_ASSUME_NONNULL_BEGIN
  Architectures suported by device
  */
 @property (nonatomic, copy, readonly) NSSet *supportedArchitectures;
-
-/**
- Starts test manager daemon service
-
- @return AMDServiceConnection if the operation succeeds, otherwise NULL.
- */
-- (CFTypeRef)startTestManagerServiceWithError:(NSError **)error;
 
 @end
 

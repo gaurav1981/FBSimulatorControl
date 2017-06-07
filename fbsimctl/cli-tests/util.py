@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import shlex
+import shutil
 import subprocess
 import time
 import urllib.request
@@ -90,9 +91,9 @@ class FBSimctlProcess:
         )
         return self
 
-    def terminate(self):
+    def terminate(self, wait=False):
         self.__loop.run_until_complete(
-            self._terminate_process(),
+            self._terminate_process(wait),
         )
 
     def __enter__(self):
@@ -101,7 +102,7 @@ class FBSimctlProcess:
         return self.start()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.terminate()
+        self.terminate(wait=True)
         self.__loop.close()
         self.__loop = None
 
@@ -119,7 +120,7 @@ class FBSimctlProcess:
         return process
 
     @asyncio.coroutine
-    def _terminate_process(self):
+    def _terminate_process(self, wait):
         if not self.__process:
             raise Exception(
                 'Cannot termnated a process when none has started',
@@ -128,7 +129,10 @@ class FBSimctlProcess:
             return
         log.info('Terminating {0}'.format(self.__process))
         self.__process.terminate()
-        yield from self.__process.wait()
+        if not wait:
+            log.info('Passing Back to Consumer')
+            return
+        yield from self.__process.communicate()
         log.info('Terminated {0}'.format(self.__process))
 
     @asyncio.coroutine
@@ -143,7 +147,14 @@ class FBSimctlProcess:
         while time.time() < start_time + timeout:
             data = yield from self.__process.stdout.readline()
             line = data.decode('utf-8').rstrip()
+            if not len(line) and self.__process.stdout.at_eof():
+                raise Exception(
+                    'Reached end of output waiting for {0}/{1}'.format(
+                    event_name,
+                    event_type,
+                ))
             log.info(line)
+            event = json.loads(line)
             matching = self._match_event(
                 event_name,
                 event_type,
@@ -211,6 +222,16 @@ class FBSimctl:
             timeout=timeout,
         )
 
+class Metal:
+    def __init__(self):
+        self.__supports_metal_exit_code = subprocess.call(
+            ['./supports_metal.swift'], 
+            stdout=subprocess.DEVNULL, 
+            stderr=subprocess.DEVNULL,
+        )
+
+    def is_supported(self):
+        return self.__supports_metal_exit_code == 0
 
 class WebServer:
     def __init__(self, port):
@@ -223,6 +244,13 @@ class WebServer:
         )
         return self._perform_request(request)
 
+    def get_binary(self, path):
+        request = urllib.request.Request(
+            url=self._make_url(path),
+            method='GET',
+        )
+        return self._perform_request_binary(request)
+
     def post(self, path, payload):
         data = json.dumps(payload).encode('utf-8')
         request = urllib.request.Request(
@@ -230,6 +258,15 @@ class WebServer:
             data=data,
             method='POST',
             headers={'content-type': 'application/json'},
+        )
+        return self._perform_request(request)
+
+    def post_binary(self, path, file, length):
+        request = urllib.request.Request(
+            self._make_url(path),
+            file,
+            method='POST',
+            headers={'content-length': length},
         )
         return self._perform_request(request)
 
@@ -244,6 +281,10 @@ class WebServer:
             response = f.read().decode('utf-8')
             return json.loads(response)
 
+    def _perform_request_binary(self, request):
+        with urllib.request.urlopen(request) as f:
+            return f.read()
+
 
 class Fixtures:
     VIDEO = os.path.realpath(
@@ -252,3 +293,25 @@ class Fixtures:
             '../../../FBSimulatorControlTests/Fixtures/video0.mp4',
         ),
     )
+
+    APP_PATH = os.path.realpath(
+        os.path.join(
+            __file__,
+            '../../../Fixtures/Binaries/TableSearch.app'
+        )
+    )
+
+    APP_BUNDLE_ID = 'com.example.apple-samplecode.TableSearch'
+
+
+def make_ipa(dest_dir, app):
+    payload = os.path.join(dest_dir, 'Payload')
+    os.mkdir(payload)
+    shutil.copytree(
+        app,
+        os.path.join(payload, os.path.basename(app))
+    )
+    zipfile = shutil.make_archive('app', 'zip', root_dir=payload)
+    ipafile = '{}.ipa'.format(zipfile)
+    shutil.move(zipfile, ipafile)
+    return ipafile

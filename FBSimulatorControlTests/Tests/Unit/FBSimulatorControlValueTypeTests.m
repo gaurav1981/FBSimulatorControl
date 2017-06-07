@@ -10,6 +10,7 @@
 #import <Foundation/Foundation.h>
 #import <XCTest/XCTest.h>
 #import <FBSimulatorControl/FBSimulatorControl.h>
+#import <Carbon/Carbon.h>
 
 #import "FBSimulatorControlFixtures.h"
 #import "FBControlCoreValueTestCase.h"
@@ -55,8 +56,8 @@
 {
   NSArray<FBSimulatorConfiguration *> *values = @[
     FBSimulatorConfiguration.defaultConfiguration,
-    FBSimulatorConfiguration.iPhone5,
-    FBSimulatorConfiguration.iPad2.iOS_8_3
+    [FBSimulatorConfiguration withDeviceModel:FBDeviceModeliPhone5],
+    [[FBSimulatorConfiguration withDeviceModel:FBDeviceModeliPad2] withOSNamed:FBOSVersionNameiOS_8_3],
   ];
   [self assertEqualityOfCopy:values];
   [self assertUnarchiving:values];
@@ -92,6 +93,7 @@
   [self assertEqualityOfCopy:values];
   [self assertUnarchiving:values];
   [self assertJSONSerialization:values];
+  [self assertJSONDeserialization:values];
 }
 
 - (void)testLaunchConfigurationScaleAppliedToFramebufferConfiguration
@@ -105,23 +107,37 @@
   XCTAssertNil(launchConfiguration.scale);
 
   launchConfiguration = [launchConfiguration scale75Percent];
-  XCTAssertEqualObjects(launchConfiguration.scale, FBSimulatorScale_75.new);
-  XCTAssertEqualObjects(launchConfiguration.framebuffer.scale, FBSimulatorScale_75.new);
-  XCTAssertNotEqualObjects(launchConfiguration.scale, FBSimulatorScale_50.new);
-  XCTAssertNotEqualObjects(launchConfiguration.framebuffer.scale, FBSimulatorScale_50.new);
+  XCTAssertEqualObjects(launchConfiguration.scale, FBSimulatorScale75);
+  XCTAssertEqualObjects(launchConfiguration.framebuffer.scale, FBSimulatorScale75);
+  XCTAssertNotEqualObjects(launchConfiguration.scale, FBSimulatorScale50);
+  XCTAssertNotEqualObjects(launchConfiguration.framebuffer.scale, FBSimulatorScale50);
+}
+
+- (void)testEncoderConfigurations
+{
+  NSArray<FBVideoEncoderConfiguration *> *values = @[
+    FBVideoEncoderConfiguration.prudentConfiguration,
+    FBVideoEncoderConfiguration.defaultConfiguration,
+    [[[FBVideoEncoderConfiguration withOptions:FBVideoEncoderOptionsAutorecord | FBVideoEncoderOptionsFinalFrame ] withRoundingMethod:kCMTimeRoundingMethod_RoundTowardZero] withFileType:@"foo"],
+    [[[FBVideoEncoderConfiguration withOptions:FBVideoEncoderOptionsImmediateFrameStart] withRoundingMethod:kCMTimeRoundingMethod_RoundTowardNegativeInfinity] withFileType:@"bar"]
+  ];
+  [self assertEqualityOfCopy:values];
+  [self assertUnarchiving:values];
+  [self assertJSONSerialization:values];
+  [self assertJSONDeserialization:values];
 }
 
 - (void)testFramebufferConfigurations
 {
   NSArray<FBFramebufferConfiguration *> *values = @[
-    FBFramebufferConfiguration.prudentConfiguration,
     FBFramebufferConfiguration.defaultConfiguration,
-    [[[FBFramebufferConfiguration withVideoOptions:FBFramebufferVideoOptionsAutorecord | FBFramebufferVideoOptionsFinalFrame ] withRoundingMethod:kCMTimeRoundingMethod_RoundTowardZero] withFileType:@"foo"],
-    [[[FBFramebufferConfiguration withVideoOptions:FBFramebufferVideoOptionsImmediateFrameStart] withRoundingMethod:kCMTimeRoundingMethod_RoundTowardNegativeInfinity] withFileType:@"bar"]
+    [FBFramebufferConfiguration configurationWithScale:FBSimulatorScale25 encoder:FBVideoEncoderConfiguration.defaultConfiguration imagePath:@"/img.png"],
+    [FBFramebufferConfiguration configurationWithScale:FBSimulatorScale75 encoder:FBVideoEncoderConfiguration.prudentConfiguration imagePath:@"/img.png"],
   ];
   [self assertEqualityOfCopy:values];
   [self assertUnarchiving:values];
   [self assertJSONSerialization:values];
+  [self assertJSONDeserialization:values];
 }
 
 - (void)testDiagnosticQueries
@@ -134,6 +150,27 @@
   ];
   [self assertEqualityOfCopy:values];
   [self assertUnarchiving:values];
+  [self assertJSONSerialization:values];
+  [self assertJSONDeserialization:values];
+}
+
+- (void)testHIDEvents
+{
+  NSArray<FBSimulatorHIDEvent *> *values = @[
+    [FBSimulatorHIDEvent tapAtX:10 y:20],
+    [FBSimulatorHIDEvent shortButtonPress:FBSimulatorHIDButtonApplePay],
+    [FBSimulatorHIDEvent shortButtonPress:FBSimulatorHIDButtonHomeButton],
+    [FBSimulatorHIDEvent shortButtonPress:FBSimulatorHIDButtonLock],
+    [FBSimulatorHIDEvent shortButtonPress:FBSimulatorHIDButtonSideButton],
+    [FBSimulatorHIDEvent shortButtonPress:FBSimulatorHIDButtonSiri],
+    [FBSimulatorHIDEvent shortButtonPress:FBSimulatorHIDButtonHomeButton],
+    [FBSimulatorHIDEvent shortKeyPress:kVK_ANSI_W],
+    [FBSimulatorHIDEvent shortKeyPress:kVK_ANSI_A],
+    [FBSimulatorHIDEvent shortKeyPress:kVK_ANSI_R],
+    [FBSimulatorHIDEvent shortKeyPress:kVK_ANSI_I],
+    [FBSimulatorHIDEvent shortKeyPress:kVK_ANSI_O],
+  ];
+  [self assertEqualityOfCopy:values];
   [self assertJSONSerialization:values];
   [self assertJSONDeserialization:values];
 }

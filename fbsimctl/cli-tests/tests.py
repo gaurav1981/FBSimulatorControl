@@ -1,12 +1,23 @@
 #!/usr/bin/env python3
 
-from util import (FBSimctl, Simulator, WebServer, Defaults, Fixtures, log)
+from util import (
+    FBSimctl,
+    Simulator,
+    WebServer,
+    Defaults,
+    Fixtures,
+    Metal,
+    log,
+    make_ipa,
+)
 import argparse
 import base64
 import contextlib
 import os
+import shutil
 import tempfile
 import unittest
+
 
 class FBSimctlTestCase(unittest.TestCase):
     def __init__(
@@ -20,10 +31,13 @@ class FBSimctlTestCase(unittest.TestCase):
         self.methodName = methodName
         self.use_custom_set = use_custom_set
         self.fbsimctl = FBSimctl(fbsimctl_path, set_path)
+        self.metal = Metal()
+        self.tmpdir = tempfile.mkdtemp()
 
     def tearDown(self):
         action = 'delete' if self.use_custom_set else 'shutdown'
         self.fbsimctl(['--simulators', action])
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def __str__(self):
         return '{}: {}'.format(
@@ -171,7 +185,6 @@ class WebserverSimulatorTestCase(FBSimctlTestCase):
         self.port = port
 
     def extractSimulatorSubjects(self, response):
-        print(response['subject'])
         self.assertEqual(response['status'], 'success')
         return [
             Simulator(event['subject']).get_udid()
@@ -187,6 +200,22 @@ class WebserverSimulatorTestCase(FBSimctlTestCase):
         with self.fbsimctl.launch(arguments) as process:
             process.wait_for_event('listen', 'started')
             yield WebServer(self.port)
+
+    def testInstallsUserApplication(self):
+        simulator = self.assertCreatesSimulator(['iPhone 6'])
+        self.assertEventSuccesful([simulator.get_udid(), 'boot'], 'boot')
+        ipafile = make_ipa(self.tmpdir, Fixtures.APP_PATH)
+        with self.launchWebserver() as webserver, open(ipafile, 'rb') as ipa:
+            response = webserver.post_binary(
+                '{}/install'.format(simulator.get_udid()),
+                ipa,
+                os.path.getsize(ipafile),
+            )
+            self.assertEqual(response.get('status'), 'success')
+        events = self.fbsimctl.run([simulator.get_udid(), 'list_apps'])
+        event = events.matching('list_apps', 'discrete')[0]
+        bundle_ids = [entry.get('bundle_id') for entry in event.get('subject')]
+        return self.assertIn(Fixtures.APP_BUNDLE_ID, bundle_ids)
 
     def testDiagnosticSearch(self):
         with self.launchWebserver() as webserver:
@@ -220,7 +249,7 @@ class WebserverSimulatorTestCase(FBSimctlTestCase):
             ]
             self.assertEqual(expected.sort(), actual.sort())
             actual = self.extractSimulatorSubjects(
-                webserver.get(iphone6.get_udid() + 'list'),
+                webserver.get(iphone6.get_udid() + '/list'),
             )
             expected = [iphone6.get_udid()]
 
@@ -235,6 +264,17 @@ class WebserverSimulatorTestCase(FBSimctlTestCase):
                 'data': data,
             })
         self.assertEventSuccesful([simulator.get_udid(), 'shutdown'], 'shutdown')
+
+    def testScreenshot(self):
+        if self.metal.is_supported() is False:
+            log.info('Metal not supported, skipping testScreenshot')
+            return
+        simulator = self.assertCreatesSimulator(['iPhone 6'])
+        self.assertEventSuccesful([simulator.get_udid(), 'boot'], 'boot')
+        with self.launchWebserver() as webserver:
+            webserver.get_binary(simulator.get_udid() + '/screenshot.png')
+            webserver.get_binary(simulator.get_udid() + '/screenshot.jpeg')
+
 
 class SingleSimulatorTestCase(FBSimctlTestCase):
     def __init__(
@@ -269,6 +309,9 @@ class SingleSimulatorTestCase(FBSimctlTestCase):
         self.assertEventSuccesful([simulator.get_udid(), 'shutdown'], 'shutdown')
 
     def testBootsDirectly(self):
+        if self.metal.is_supported() is False:
+            log.info('Metal not supported, skipping testBootsDirectly')
+            return
         simulator = self.assertCreatesSimulator([self.device_type])
         self.assertEventSuccesful([simulator.get_udid(), 'boot', '--direct-launch'], 'boot')
         self.assertEventSuccesful([simulator.get_udid(), 'shutdown'], 'shutdown')
@@ -297,20 +340,49 @@ class SingleSimulatorTestCase(FBSimctlTestCase):
         self.assertEventSuccesful([simulator.get_udid(), 'upload', Fixtures.VIDEO], 'upload')
         self.assertEventSuccesful([simulator.get_udid(), 'shutdown'], 'shutdown')
 
+    def assertInstallsUserApplication(self, udid, path, bundle_id):
+        self.assertEventSuccesful([udid, 'boot'], 'boot')
+        self.assertEventSuccesful([udid, 'install', path], 'install')
+        events = self.fbsimctl.run([udid, 'list_apps'])
+        event = events.matching('list_apps', 'discrete')[0]
+        bundle_ids = [entry.get('bundle_id') for entry in event.get('subject')]
+        return self.assertIn(bundle_id, bundle_ids)
+
+    def testInstallsUserApplication(self):
+        simulator = self.assertCreatesSimulator([self.device_type])
+        self.assertInstallsUserApplication(
+            simulator.get_udid(),
+            Fixtures.APP_PATH,
+            Fixtures.APP_BUNDLE_ID,
+        )
+        self.assertEventSuccesful([simulator.get_udid(), 'shutdown'], 'shutdown')
+
+    def testInstallsIPA(self):
+        ipafile = make_ipa(self.tmpdir, Fixtures.APP_PATH)
+        simulator = self.assertCreatesSimulator([self.device_type])
+        self.assertInstallsUserApplication(
+            simulator.get_udid(),
+            ipafile,
+            Fixtures.APP_BUNDLE_ID,
+        )
+        self.assertEventSuccesful([simulator.get_udid(), 'shutdown'], 'shutdown')
+
     def testRecordsVideo(self):
+        if self.metal.is_supported() is False:
+            log.info('Metal not supported, skipping testRecordsVideo')
+            return
         (simulator, _) = self.testLaunchesSystemApplication()
         arguments = [
-            simulator.get_udid(), 'record', 'start',
+            simulator.get_udid(),
+            'record', 'start',
             '--', 'listen',
             '--', 'record', 'stop',
-            '--', 'shutdown',
         ]
         # Launch the process, terminate and confirm teardown is successful
         with self.fbsimctl.launch(arguments) as process:
             process.wait_for_event('listen', 'started')
             process.terminate()
             process.wait_for_event('listen', 'ended')
-            process.wait_for_event('shutdown', 'ended')
         # Get the diagnostics
         diagnose_events = self.assertExtractAndKeyDiagnostics(
             self.assertEventsFromRun(
@@ -335,11 +407,17 @@ class SuiteBuilder:
         self.loader = unittest.defaultTestLoader
 
     def _filter_methods(self, cls, methods):
-        log.info('All Tests for {} {}'.format(cls, methods))
+        log.info('All Tests for {} {}'.format(
+            cls.__name__,
+            methods,
+        ))
         if not self.name_filter:
             return methods
         filtered = [method for method in methods if self.name_filter.lower() in method.lower()]
-        log.info('Filtered Tests for {}'.format(cls, filtered))
+        log.info('Filtered Tests for {}'.format(
+            cls.__name__,
+            filtered,
+        ))
         return filtered
 
     def _get_base_methods(self):
@@ -348,22 +426,23 @@ class SuiteBuilder:
             self.loader.getTestCaseNames(FBSimctlTestCase)
         )
 
-    def _get_extended_methods(self, cls):
+    def _get_extended_methods(self, cls, base_methods):
         return self._filter_methods(
             cls,
-            set(self.loader.getTestCaseNames(cls)) - set(self._get_base_methods()),
+            set(self.loader.getTestCaseNames(cls)) - set(base_methods),
         )
 
     def build(self):
         # Run all the tests in the base test case against custom & default set
         suite = unittest.TestSuite()
+        base_methods = self._get_base_methods()
         suite.addTests([
             FBSimctlTestCase(
                 methodName=method_name,
                 fbsimctl_path=self.fbsimctl_path,
                 use_custom_set=use_custom_set,
             )
-            for method_name in self._get_base_methods()
+            for method_name in base_methods
             for use_custom_set in [True, False]
         ])
         # Only run per-Simulator-Type tests against a custom set.
@@ -373,7 +452,7 @@ class SuiteBuilder:
                 fbsimctl_path=self.fbsimctl_path,
                 device_type=device_type,
             )
-            for method_name in self._get_extended_methods(SingleSimulatorTestCase)
+            for method_name in self._get_extended_methods(SingleSimulatorTestCase, base_methods)
             for device_type in self.device_types
         ])
         # Only run per-Webserver-Type tests against a custom set.
@@ -383,7 +462,7 @@ class SuiteBuilder:
                 fbsimctl_path=self.fbsimctl_path,
                 port=8090,
             )
-            for method_name in self._get_extended_methods(WebserverSimulatorTestCase)
+            for method_name in self._get_extended_methods(WebserverSimulatorTestCase, base_methods)
         ])
         # Only run multiple-Simulator tests against a custom set.
         suite.addTests([
@@ -392,7 +471,7 @@ class SuiteBuilder:
                 fbsimctl_path=self.fbsimctl_path,
             )
             for method_name
-            in self._get_extended_methods(MultipleSimulatorTestCase)
+            in self._get_extended_methods(MultipleSimulatorTestCase, base_methods)
         ])
         return suite
 

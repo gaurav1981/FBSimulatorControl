@@ -11,15 +11,19 @@
 
 #import <FBControlCore/FBControlCore.h>
 
-@class FBApplicationLaunchConfiguration;
-@protocol FBTestManagerTestReporter;
-
 NS_ASSUME_NONNULL_BEGIN
+
+@class FBApplicationLaunchConfiguration;
+
+/**
+ The Action Type for a Test Launch.
+ */
+extern FBiOSTargetActionType const FBiOSTargetActionTypeTestLaunch;
 
 /**
  A Value object with the information required to launch a XCTest.
  */
-@interface FBTestLaunchConfiguration : NSObject <NSCopying, FBJSONSerializable, FBDebugDescribeable>
+@interface FBTestLaunchConfiguration : NSObject <NSCopying, FBiOSTargetAction, FBDebugDescribeable>
 
 /**
  The Designated Initializer
@@ -54,6 +58,16 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (nonatomic, assign, readonly) BOOL shouldInitializeUITesting;
 
+/*
+ Run only these tests. Format: "className/methodName"
+ */
+@property (nonatomic, copy, readonly, nullable) NSSet<NSString *> *testsToRun;
+
+/*
+ Skip these tests. Format: "className/methodName"
+ */
+@property (nonatomic, copy, readonly) NSSet<NSString *> *testsToSkip;
+
 /**
  Adds application launch configuration
 
@@ -85,6 +99,22 @@ NS_ASSUME_NONNULL_BEGIN
  @return new test launch configuration with changes applied.
  */
 - (instancetype)withUITesting:(BOOL)shouldInitializeUITesting;
+
+/**
+ Adds tests to skip.
+
+ @param testsToSkip tests to skip. Format: "className/methodName"
+ @return new test launch configuration with changes applied.
+ */
+- (instancetype)withTestsToSkip:(NSSet<NSString *> *)testsToSkip;
+
+/**
+ Adds tests to run.
+
+ @param testsToRun tests to run. Format: "className/methodName"
+ @return new test launch configuration with changes applied.
+ */
+- (instancetype)withTestsToRun:(NSSet<NSString *> *)testsToRun;
 
 @end
 

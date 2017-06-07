@@ -7,9 +7,6 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#import <FBXCTestKit/FBJSONTestReporter.h>
-#import <FBXCTestKit/FBXCTestConfiguration.h>
-#import <FBXCTestKit/FBXCTestShimConfiguration.h>
-#import <FBXCTestKit/FBXCTestBootstrapper.h>
-#import <FBXCTestKit/FBXCTestRunner.h>
-#import <FBXCTestKit/FBXCTestLogger.h>
+#import <FBXCTestKit/FBXCTestBaseRunner.h>
+#import <FBXCTestKit/FBXCTestConfiguration+CommandLine.h>
+#import <FBXCTestKit/FBXCTestContext.h>

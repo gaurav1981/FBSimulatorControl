@@ -11,7 +11,9 @@
 
 @implementation FBiOSTargetDouble
 
+@synthesize architecture;
 @synthesize deviceOperator;
+@synthesize logger;
 
 #pragma mark FBDebugDescribeable
 
@@ -69,9 +71,14 @@
   return NO;
 }
 
-- (BOOL)startRecordingWithError:(NSError **)error
+- (nullable id<FBVideoRecordingSession>)startRecordingToFile:(NSString *)filePath error:(NSError **)error
 {
-  return NO;
+  return nil;
+}
+
+- (nullable id<FBBitmapStream>)createStreamWithConfiguration:(FBBitmapStreamConfiguration *)configuration error:(NSError **)error
+{
+  return nil;
 }
 
 - (BOOL)stopRecordingWithError:(NSError **)error

@@ -14,7 +14,6 @@
 #import <CoreSimulator/SimDevice.h>
 
 #import "FBApplicationLaunchStrategy.h"
-#import "FBSimulator+Connection.h"
 #import "FBSimulator+Helpers.h"
 #import "FBSimulator+Private.h"
 #import "FBSimulator.h"
@@ -30,6 +29,7 @@
 #import "FBSimulatorProcessFetcher.h"
 #import "FBSimulatorSubprocessTerminationStrategy.h"
 #import "FBProcessLaunchConfiguration+Simulator.h"
+#import "FBSimulatorLaunchCtl.h"
 
 @interface FBApplicationLaunchStrategy ()
 
@@ -47,15 +47,15 @@
 
 @implementation FBApplicationLaunchStrategy
 
-+ (instancetype)withSimulator:(FBSimulator *)simulator useBridge:(BOOL)useBridge;
++ (instancetype)strategyWithSimulator:(FBSimulator *)simulator useBridge:(BOOL)useBridge;
 {
   Class strategyClass = useBridge ? FBApplicationLaunchStrategy_CoreSimulator.class : FBApplicationLaunchStrategy_CoreSimulator.class;
   return [[strategyClass alloc] initWithSimulator:simulator];
 }
 
-+ (instancetype)withSimulator:(FBSimulator *)simulator
++ (instancetype)strategyWithSimulator:(FBSimulator *)simulator
 {
-  return [self withSimulator:simulator useBridge:NO];
+  return [self strategyWithSimulator:simulator useBridge:NO];
 }
 
 - (instancetype)initWithSimulator:(FBSimulator *)simulator
@@ -185,7 +185,7 @@
   NSError *innerError = nil;
   FBProcessInfo *process = [simulator runningApplicationWithBundleID:appLaunch.bundleID error:&innerError];
   if (process) {
-    if (![[FBSimulatorSubprocessTerminationStrategy forSimulator:simulator] terminate:process error:error]) {
+    if (![[FBSimulatorSubprocessTerminationStrategy strategyWithSimulator:simulator] terminate:process error:error]) {
       return [FBSimulatorError failBoolWithError:innerError errorOut:error];
     }
   }
@@ -239,7 +239,7 @@
 
   // Kill the Application Process
   NSError *innerError = nil;
-  if (![[FBSimulatorSubprocessTerminationStrategy forSimulator:simulator] terminate:process error:error]) {
+  if (![[FBSimulatorSubprocessTerminationStrategy strategyWithSimulator:simulator] terminate:process error:error]) {
     return [[[[FBSimulatorError
       describeFormat:@"Failed to terminate app %@", process.shortDescription]
       causedBy:innerError]
@@ -282,8 +282,27 @@
 - (pid_t)launchApplication:(FBApplicationLaunchConfiguration *)appLaunch stdOutPath:(NSString *)stdOutPath stdErrPath:(NSString *)stdErrPath error:(NSError **)error
 {
   FBSimulator *simulator = self.simulator;
-  NSDictionary<NSString *, id> *options = [appLaunch simDeviceLaunchOptionsWithStdOutPath:stdOutPath stdErrPath:stdErrPath];
+  NSDictionary<NSString *, id> *options = [appLaunch
+    simDeviceLaunchOptionsWithStdOutPath:[self translateAbsolutePath:stdOutPath toPathRelativeTo:simulator.dataDirectory]
+    stdErrPath:[self translateAbsolutePath:stdErrPath toPathRelativeTo:simulator.dataDirectory]
+    waitForDebugger:appLaunch.waitForDebugger];
   return [simulator.device launchApplicationWithID:appLaunch.bundleID options:options error:error];
+}
+
+- (NSString *)translateAbsolutePath:(NSString *)absolutePath toPathRelativeTo:(NSString *)referencePath
+{
+  if (![absolutePath hasPrefix:@"/"]) {
+    return absolutePath;
+  }
+  // When launching an application with a custom stdout/stderr path, `SimDevice` uses the given path relative
+  // to the Simulator's data directory. From the Framework's consumer point of view this might not be the
+  // wanted behaviour. To work around it, we construct a path relative to the Simulator's data directory
+  // using `..` until we end up in the absolute path outside the Simulator's data directory.
+  NSString *translatedPath = @"";
+  for (NSUInteger index = 0; index < referencePath.pathComponents.count; index++) {
+    translatedPath = [translatedPath stringByAppendingPathComponent:@".."];
+  }
+  return [translatedPath stringByAppendingPathComponent:absolutePath];
 }
 
 @end

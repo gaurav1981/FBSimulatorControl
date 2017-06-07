@@ -9,16 +9,20 @@
 
 #import <Foundation/Foundation.h>
 
-#import <FBControlCore/FBJSONConversion.h>
-#import <FBControlCore/FBDebugDescribeable.h>
 #import <FBControlCore/FBApplicationCommands.h>
+#import <FBControlCore/FBArchitecture.h>
+#import <FBControlCore/FBBitmapStreamingCommands.h>
+#import <FBControlCore/FBDebugDescribeable.h>
+#import <FBControlCore/FBJSONConversion.h>
 #import <FBControlCore/FBVideoRecordingCommands.h>
 
+@class FBDeviceType;
+@class FBOSVersion;
 @class FBProcessInfo;
+@class FBiOSActionRouter;
 @class FBiOSTargetDiagnostics;
-@protocol FBControlCoreConfiguration_Device;
-@protocol FBControlCoreConfiguration_OS;
 @protocol FBDeviceOperator;
+@protocol FBControlCoreLogger;
 
 /**
  Uses the known values of SimDevice State, to construct an enumeration.
@@ -48,12 +52,17 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  Common Properties of Devices & Simulators.
  */
-@protocol FBiOSTarget <NSObject, FBJSONSerializable, FBDebugDescribeable, FBApplicationCommands, FBVideoRecordingCommands>
+@protocol FBiOSTarget <NSObject, FBJSONSerializable, FBDebugDescribeable, FBApplicationCommands, FBBitmapStreamingCommands, FBVideoRecordingCommands>
 
 /**
- Device operator used to control device. It provides API for XCTestBoostrap to interact with the device.
+ The Target's Logger.
  */
-@property (nonatomic, nullable, strong, readonly) id<FBDeviceOperator> deviceOperator;
+@property (nonatomic, strong, readonly, nullable) id<FBControlCoreLogger> logger;
+
+/**
+ The Action Classes supported by the reciever.
+ */
+@property (nonatomic, strong, readonly) NSArray<Class> *actionClasses;
 
 /**
  The Unique Device Identifier of the iOS Target.
@@ -86,6 +95,21 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign, readonly) FBiOSTargetType targetType;
 
 /**
+ The Architecture of the iOS Target
+ */
+@property (nonatomic, copy, readonly) FBArchitecture architecture;
+
+/**
+ The Device Type of the Target.
+ */
+@property (nonatomic, copy, readonly) FBDeviceType *deviceType;
+
+/**
+ The OS Version of the Target.
+ */
+@property (nonatomic, copy, readonly) FBOSVersion *osVersion;
+
+/**
  Process Information about the launchd process of the iOS Target. Currently only applies to Simulators.
  */
 @property (nonatomic, copy, nullable, readonly) FBProcessInfo *launchdProcess;
@@ -94,16 +118,10 @@ NS_ASSUME_NONNULL_BEGIN
  Process Information about the Container Application of the iOS Target. Currently only applies to Simulators.
  */
 @property (nonatomic, copy, nullable, readonly) FBProcessInfo *containerApplication;
-
 /**
- The Configuration of the iOS Target's Device.
+ Device operator used to control device. It provides API for XCTestBoostrap to interact with the device.
  */
-@property (nonatomic, copy, readonly) id<FBControlCoreConfiguration_Device> deviceConfiguration;
-
-/**
- The Configuration of the iOS Target's OS.
- */
-@property (nonatomic, copy, readonly) id<FBControlCoreConfiguration_OS> osConfiguration;
+@property (nonatomic, nullable, strong, readonly) id<FBDeviceOperator> deviceOperator;
 
 /**
  A Comparison Method for `sortedArrayUsingSelector:`

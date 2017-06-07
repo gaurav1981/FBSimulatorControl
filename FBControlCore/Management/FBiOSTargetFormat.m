@@ -15,22 +15,56 @@
 #import "FBControlCoreConfigurationVariants.h"
 #import "FBProcessInfo.h"
 
-NSString *const FBiOSTargetFormatUDID = @"udid";
-NSString *const FBiOSTargetFormatName = @"name";
-NSString *const FBiOSTargetFormatDeviceName = @"device-name";
-NSString *const FBiOSTargetFormatOSVersion = @"os";
-NSString *const FBiOSTargetFormatState = @"state";
-NSString *const FBiOSTargetFormatProcessIdentifier = @"pid";
-NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier = @"container_pid";
+FBiOSTargetFormatKey const FBiOSTargetFormatUDID = @"udid";
+FBiOSTargetFormatKey const FBiOSTargetFormatName = @"name";
+FBiOSTargetFormatKey const FBiOSTargetFormatModel = @"model";
+FBiOSTargetFormatKey const FBiOSTargetFormatOSVersion = @"os";
+FBiOSTargetFormatKey const FBiOSTargetFormatState = @"state";
+FBiOSTargetFormatKey const FBiOSTargetFormatArchitecture = @"arch";
+FBiOSTargetFormatKey const FBiOSTargetFormatProcessIdentifier = @"pid";
+FBiOSTargetFormatKey const FBiOSTargetFormatContainerApplicationProcessIdentifier = @"container-pid";
 
 @implementation FBiOSTargetFormat
 
++ (NSDictionary<NSString *, FBiOSTargetFormatKey> *)formatMapping
+{
+  return @{
+    @"a" : FBiOSTargetFormatArchitecture,
+    @"m" : FBiOSTargetFormatModel,
+    @"n" : FBiOSTargetFormatName,
+    @"o" : FBiOSTargetFormatOSVersion,
+    @"p" : FBiOSTargetFormatProcessIdentifier,
+    @"s" : FBiOSTargetFormatState,
+    @"u" : FBiOSTargetFormatUDID,
+  };
+}
+
 #pragma mark Initializers
 
-+ (instancetype)formatWithFields:(NSArray<NSString *> *)fields
++ (instancetype)formatWithFields:(NSArray<FBiOSTargetFormatKey> *)fields
 {
   NSParameterAssert([FBCollectionInformation isArrayHeterogeneous:fields withClass:NSString.class]);
   return [[self alloc] initWithFields:fields];
+}
+
++ (nullable instancetype)formatWithString:(NSString *)string error:(NSError **)error
+{
+  NSArray<NSString *> *components = [string componentsSeparatedByCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"%@"]];
+  NSDictionary<NSString *, FBiOSTargetFormatKey> *mapping = [self formatMapping];
+  NSMutableArray<FBiOSTargetFormatKey> *keys = [NSMutableArray array];
+  for (NSString *component in components) {
+    if (component.length == 0) {
+      continue;
+    }
+    FBiOSTargetFormatKey key = mapping[component];
+    if (!key) {
+      return [[FBControlCoreError
+        describeFormat:@"%@ is not a valid format in %@", component, [FBCollectionInformation oneLineDescriptionFromArray:mapping.allKeys]]
+        fail:error];
+    }
+    [keys addObject:key];
+  }
+  return [self formatWithFields:[keys copy]];
 }
 
 + (instancetype)defaultFormat
@@ -42,8 +76,9 @@ NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier = @"conta
       FBiOSTargetFormatUDID,
       FBiOSTargetFormatName,
       FBiOSTargetFormatState,
-      FBiOSTargetFormatDeviceName,
+      FBiOSTargetFormatModel,
       FBiOSTargetFormatOSVersion,
+      FBiOSTargetFormatArchitecture,
     ]];
   });
   return format;
@@ -58,8 +93,9 @@ NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier = @"conta
       FBiOSTargetFormatUDID,
       FBiOSTargetFormatName,
       FBiOSTargetFormatState,
-      FBiOSTargetFormatDeviceName,
+      FBiOSTargetFormatModel,
       FBiOSTargetFormatOSVersion,
+      FBiOSTargetFormatArchitecture,
       FBiOSTargetFormatProcessIdentifier,
       FBiOSTargetFormatContainerApplicationProcessIdentifier,
     ]];
@@ -67,7 +103,7 @@ NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier = @"conta
   return format;
 }
 
-- (instancetype)initWithFields:(NSArray<NSString *> *)fields
+- (instancetype)initWithFields:(NSArray<FBiOSTargetFormatKey> *)fields
 {
   self = [super init];
   if (!self) {
@@ -110,7 +146,7 @@ NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier = @"conta
 
 - (instancetype)initWithCoder:(NSCoder *)coder
 {
-  NSArray<NSString *> *fields = [coder decodeObjectForKey:NSStringFromSelector(@selector(fields))];
+  NSArray<FBiOSTargetFormatKey> *fields = [coder decodeObjectForKey:NSStringFromSelector(@selector(fields))];
   return [self initWithFields:fields];
 }
 
@@ -138,7 +174,7 @@ NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier = @"conta
 
 #pragma mark Public
 
-- (instancetype)appendFields:(NSArray<NSString *> *)fields
+- (instancetype)appendFields:(NSArray<FBiOSTargetFormatKey> *)fields
 {
   if (fields.count == 0) {
     return self;
@@ -183,18 +219,20 @@ NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier = @"conta
   return [dictionary copy];
 }
 
-+ (nullable id)extract:(NSString *)field from:(id<FBiOSTarget>)target
++ (nullable id)extract:(FBiOSTargetFormatKey)field from:(id<FBiOSTarget>)target
 {
   if ([field isEqualToString:FBiOSTargetFormatUDID]) {
     return target.udid;
   } else if ([field isEqualToString:FBiOSTargetFormatName]) {
     return target.name;
-  } else if ([field isEqualToString:FBiOSTargetFormatDeviceName]) {
-    return target.deviceConfiguration.deviceName;
+  } else if ([field isEqualToString:FBiOSTargetFormatModel]) {
+    return target.deviceType.model;
   } else if ([field isEqualToString:FBiOSTargetFormatOSVersion]) {
-    return target.osConfiguration.name;
+    return target.osVersion.name;
   } else if ([field isEqualToString:FBiOSTargetFormatState]) {
     return FBSimulatorStateStringFromState(target.state);
+  } else if ([field isEqualToString:FBiOSTargetFormatArchitecture]) {
+    return target.architecture;
   } else if ([field isEqualToString:FBiOSTargetFormatProcessIdentifier]) {
     return @(target.launchdProcess.processIdentifier);
   } else if ([field isEqualToString:FBiOSTargetFormatContainerApplicationProcessIdentifier]) {

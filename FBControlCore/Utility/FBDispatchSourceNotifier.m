@@ -9,11 +9,7 @@
 
 #import "FBDispatchSourceNotifier.h"
 
-@interface FBDispatchSourceNotifier ()
-
-@property (nonatomic, strong) dispatch_source_t dispatchSource;
-
-@end
+FBTerminationHandleType const FBTerminationHandleTypeDispatchSource = @"DispatchSource";
 
 @implementation FBDispatchSourceNotifier
 
@@ -23,8 +19,20 @@
     DISPATCH_SOURCE_TYPE_PROC,
     (unsigned long) processIdentifier,
     DISPATCH_PROC_EXIT,
-    DISPATCH_TARGET_QUEUE_DEFAULT
+    dispatch_get_main_queue()
   );
+  return [[self alloc] initWithDispatchSource:dispatchSource handler:handler];
+}
+
++ (instancetype)timerNotifierNotifierWithTimeInterval:(uint64_t)timeInterval queue:(dispatch_queue_t)queue handler:(void (^)(FBDispatchSourceNotifier *))handler
+{
+  dispatch_source_t dispatchSource = dispatch_source_create(
+    DISPATCH_SOURCE_TYPE_TIMER,
+    0,
+    0,
+    queue
+  );
+  dispatch_source_set_timer(dispatchSource, DISPATCH_TIME_NOW, timeInterval, 0);
   return [[self alloc] initWithDispatchSource:dispatchSource handler:handler];
 }
 
@@ -35,13 +43,11 @@
     return nil;
   }
 
-  self.dispatchSource = dispatchSource;
+  _dispatchSource = dispatchSource;
   __weak typeof(self) weakSelf = self;
   dispatch_source_set_event_handler(dispatchSource, ^(){
     __strong typeof(self) strongSelf = weakSelf;
-    dispatch_async(dispatch_get_main_queue(), ^{
-      handler(strongSelf);
-    });
+    handler(strongSelf);
   });
   dispatch_resume(dispatchSource);
   return self;
@@ -51,8 +57,13 @@
 {
   if (self.dispatchSource) {
     dispatch_source_cancel(self.dispatchSource);
-    self.dispatchSource = nil;
+    _dispatchSource = nil;
   }
+}
+
+- (FBTerminationHandleType)type
+{
+  return FBTerminationHandleTypeDispatchSource;
 }
 
 - (void)dealloc

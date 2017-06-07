@@ -9,6 +9,8 @@
 
 #import <Foundation/Foundation.h>
 
+#import <FBControlCore/FBDiagnostic.h>
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class FBDiagnostic;
@@ -18,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  The Name of the Video Log
  */
-extern NSString *const FBiOSTargetLogNameVideo;
+extern FBDiagnosticName const FBDiagnosticNameVideo;
 
 /**
  A Base Class for Providing Diagnostics from a target.

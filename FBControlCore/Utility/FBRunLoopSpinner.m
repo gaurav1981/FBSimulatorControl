@@ -20,7 +20,7 @@
 
 @implementation FBRunLoopSpinner
 
-+ (id)spinUntilBlockFinished:(id (^)())block
++ (id)spinUntilBlockFinished:(id (^)(void))block
 {
   __block volatile uint32_t didFinish = 0;
   __block id returnObject;
@@ -100,7 +100,7 @@
   NSDate *date = [NSDate dateWithTimeIntervalSinceNow:timeout];
   while (!untilTrue()) {
     @autoreleasepool {
-      if ([date timeIntervalSinceNow] < 0) {
+      if (timeout > 0 && [date timeIntervalSinceNow] < 0) {
         return NO;
       }
       // Wait for 100ms

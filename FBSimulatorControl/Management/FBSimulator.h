@@ -11,6 +11,17 @@
 
 #import <FBControlCore/FBControlCore.h>
 
+#import <XCTestBootstrap/XCTestBootstrap.h>
+
+#import <FBSimulatorControl/FBSimulatorAgentCommands.h>
+#import <FBSimulatorControl/FBSimulatorBridgeCommands.h>
+#import <FBSimulatorControl/FBSimulatorKeychainCommands.h>
+#import <FBSimulatorControl/FBSimulatorApplicationCommands.h>
+#import <FBSimulatorControl/FBSimulatorSettingsCommands.h>
+#import <FBSimulatorControl/FBSimulatorXCTestCommands.h>
+#import <FBSimulatorControl/FBSimulatorLifecycleCommands.h>
+#import <FBSimulatorControl/FBSimulatorVideoRecordingCommands.h>
+
 @protocol FBSimulatorEventSink;
 @protocol FBControlCoreLogger;
 @class FBControlCoreLogger;
@@ -28,7 +39,7 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  Defines the High-Level Properties and Methods that exist on any Simulator returned from `FBSimulatorPool`.
  */
-@interface FBSimulator : NSObject <FBiOSTarget>
+@interface FBSimulator : NSObject <FBiOSTarget, FBXCTestCommands, FBSimulatorAgentCommands, FBSimulatorApplicationCommands, FBSimulatorBridgeCommands, FBSimulatorKeychainCommands, FBSimulatorSettingsCommands, FBSimulatorXCTestCommands, FBSimulatorLifecycleCommands>
 
 /**
  The Underlying SimDevice.
@@ -61,11 +72,6 @@ NS_ASSUME_NONNULL_BEGIN
  Events should be sent to `eventSink` and not this property; events will propogate here automatically.
  */
 @property (nonatomic, strong, readwrite, nullable) id<FBSimulatorEventSink> userEventSink;
-
-/**
- The Simulator's Logger.
- */
-@property (nonatomic, strong, readonly, nullable) id<FBControlCoreLogger> logger;
 
 /**
  History of the Simulator.

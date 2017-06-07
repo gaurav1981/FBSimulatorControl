@@ -10,8 +10,6 @@
 #import "FBAMDevice.h"
 #import "FBAMDevice+Private.h"
 
-#import <FBControlCore/FBControlCore.h>
-
 #include <dlfcn.h>
 
 #import "FBDeviceControlError.h"
@@ -62,6 +60,9 @@ static void *FBGetSymbolFromHandle(void *handle, const char *name)
   FBAMDCreateDeviceList = (CFArrayRef(*)(void))FBGetSymbolFromHandle(handle, "AMDCreateDeviceList");
   FBAMDeviceGetName = (CFStringRef(*)(CFTypeRef))FBGetSymbolFromHandle(handle, "AMDeviceGetName");
   FBAMDeviceCopyValue = (CFStringRef(*)(CFTypeRef, CFStringRef, CFStringRef))FBGetSymbolFromHandle(handle, "AMDeviceCopyValue");
+  FBAMDeviceSecureTransferPath = (int(*)(int, CFTypeRef, CFURLRef, CFDictionaryRef, void *, int))FBGetSymbolFromHandle(handle, "AMDeviceSecureTransferPath");
+  FBAMDeviceSecureInstallApplication = (int(*)(int, CFTypeRef, CFURLRef, CFDictionaryRef, void *, int))FBGetSymbolFromHandle(handle, "AMDeviceSecureInstallApplication");
+  FBAMDeviceSecureUninstallApplication = (int(*)(int, CFTypeRef, CFStringRef, int, void *, int))FBGetSymbolFromHandle(handle, "AMDeviceSecureUninstallApplication");
 }
 + (NSArray<FBAMDevice *> *)allDevices
 {
@@ -99,6 +100,18 @@ static void *FBGetSymbolFromHandle(void *handle, const char *name)
       describe:@"Failed to connect to device."]
      fail:error];
   }
+  if (FBAMDeviceIsPaired(_amDevice) != 1) {
+    return
+    [[FBDeviceControlError
+      describe:@"Device is not paired"]
+     fail:error];
+  }
+  if (FBAMDeviceValidatePairing(_amDevice) != 0) {
+    return
+    [[FBDeviceControlError
+      describe:@"Validate pairing failed"]
+     fail:error];
+  }
   id operationResult = nil;
   if (FBAMDeviceStartSession(_amDevice) == 0) {
     operationResult = operationBlock(_amDevice);
@@ -112,17 +125,13 @@ static void *FBGetSymbolFromHandle(void *handle, const char *name)
   return operationResult;
 }
 
-- (CFTypeRef)startTestManagerServiceWithError:(NSError **)error
+- (CFTypeRef)startService:(NSString *)service userInfo:(NSDictionary *)userInfo error:(NSError **)error
 {
-  NSDictionary *userInfo = @{
-    @"CloseOnInvalidate" : @1,
-    @"InvalidateOnDetach" : @1
-  };
   return (__bridge CFTypeRef _Nonnull)([self handleWithBlockDeviceSession:^id(CFTypeRef device) {
     CFTypeRef test_apple_afc_conn;
     FBAMDeviceSecureStartService(
       device,
-      CFSTR("com.apple.testmanagerd.lockdown"),
+      (__bridge CFStringRef _Nonnull)(service),
       (__bridge CFDictionaryRef _Nonnull)(userInfo),
       &test_apple_afc_conn
     );
@@ -130,10 +139,18 @@ static void *FBGetSymbolFromHandle(void *handle, const char *name)
   } error:error]);
 }
 
+- (CFTypeRef)startTestManagerServiceWithError:(NSError **)error
+{
+  NSDictionary *userInfo = @{
+    @"CloseOnInvalidate" : @1,
+    @"InvalidateOnDetach" : @1
+  };
+  return [self startService:@"com.apple.testmanagerd.lockdown" userInfo:userInfo error:error];
+}
+
 - (void)dealloc
 {
   CFRelease(_amDevice);
-  _amDevice = nil;
 }
 
 #pragma mark Private
@@ -142,24 +159,16 @@ static void *FBGetSymbolFromHandle(void *handle, const char *name)
 {
   return
   [[self handleWithBlockDeviceSession:^id(CFTypeRef device) {
-    if (FBAMDeviceIsPaired(device) != 1) {
-      return @NO;
-
-    }
-    if (FBAMDeviceValidatePairing(device) != 0) {
-      return @NO;
-    }
-
     self->_udid = (__bridge NSString *)(FBAMDeviceGetName(device));
     self->_deviceName = (__bridge NSString *)(FBAMDeviceCopyValue(device, NULL, CFSTR("DeviceName")));
     self->_modelName = (__bridge NSString *)(FBAMDeviceCopyValue(device, NULL, CFSTR("DeviceClass")));
     self->_systemVersion = (__bridge NSString *)(FBAMDeviceCopyValue(device, NULL, CFSTR("ProductVersion")));
     self->_productType = (__bridge NSString *)(FBAMDeviceCopyValue(device, NULL, CFSTR("ProductType")));
-    self->_architechture = (__bridge NSString *)(FBAMDeviceCopyValue(device, NULL, CFSTR("CPUArchitecture")));
+    self->_architecture = (__bridge NSString *)(FBAMDeviceCopyValue(device, NULL, CFSTR("CPUArchitecture")));
 
     NSString *osVersion = [FBAMDevice osVersionForDevice:device];
     self->_deviceConfiguration = FBControlCoreConfigurationVariants.productTypeToDevice[self->_productType];
-    self->_osConfiguration = FBControlCoreConfigurationVariants.nameToOSVersion[osVersion];
+    self->_osConfiguration = FBControlCoreConfigurationVariants.nameToOSVersion[osVersion] ?: [FBOSVersion genericWithName:osVersion];
     return @YES;
   } error:nil] boolValue];
 }

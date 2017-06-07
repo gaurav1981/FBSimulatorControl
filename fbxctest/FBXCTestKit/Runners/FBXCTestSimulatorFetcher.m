@@ -10,34 +10,48 @@
 #import "FBXCTestSimulatorFetcher.h"
 
 #import <FBSimulatorControl/FBSimulatorControl.h>
-
-#import "FBXCTestConfiguration.h"
-#import "FBXCTestLogger.h"
-#import "FBXCTestError.h"
-#import "FBXCTestDestination.h"
+#import <XCTestBootstrap/XCTestBootstrap.h>
 
 @interface FBXCTestSimulatorFetcher ()
 
-@property (nonatomic, strong, readonly) FBXCTestConfiguration *configuration;
-@property (nonatomic, strong, readonly) FBSimulatorConfiguration *simulatorConfiguration;
+@property (nonatomic, strong, readonly) FBSimulatorControl *simulatorControl;
 @property (nonatomic, strong, readonly) id<FBControlCoreLogger> logger;
 
 @end
 
 @implementation FBXCTestSimulatorFetcher
 
-+ (instancetype)withConfiguration:(FBXCTestConfiguration *)configuration error:(NSError **)error
++ (nullable instancetype)fetcherWithWorkingDirectory:(NSString *)workingDirectory logger:(id<FBControlCoreLogger>)logger error:(NSError **)error
 {
-  id<FBControlCoreLogger> logger = configuration.logger;
+  NSString *setPath = [workingDirectory stringByAppendingPathComponent:@"sim"];
   FBSimulatorControlConfiguration *controlConfiguration = [FBSimulatorControlConfiguration
-    configurationWithDeviceSetPath:nil
-    options:FBSimulatorManagementOptionsKillAllOnFirstStart];
+    configurationWithDeviceSetPath:setPath
+    options:FBSimulatorManagementOptionsDeleteAllOnFirstStart];
 
   NSError *innerError = nil;
-  FBSimulatorControl *simulatorControl = [FBSimulatorControl withConfiguration:controlConfiguration logger:configuration.logger error:&innerError];
+  FBSimulatorControl *simulatorControl = [FBSimulatorControl withConfiguration:controlConfiguration logger:logger error:&innerError];
   if (!simulatorControl) {
     return [FBXCTestError failWithError:innerError errorOut:error];
   }
+
+  return [[self alloc] initWithSimulatorControl:simulatorControl logger:logger];
+}
+
+- (instancetype)initWithSimulatorControl:(FBSimulatorControl *)simulatorControl logger:(id<FBControlCoreLogger>)logger
+{
+  self = [super init];
+  if (!self) {
+    return nil;
+  }
+
+  _simulatorControl = simulatorControl;
+  _logger = logger;
+
+  return self;
+}
+
+- (nullable FBSimulator *)fetchSimulatorForConfiguration:(FBXCTestConfiguration *)configuration error:(NSError **)error
+{
   FBXCTestDestinationiPhoneSimulator *destination = (FBXCTestDestinationiPhoneSimulator *)configuration.destination;
   if (![destination isKindOfClass:FBXCTestDestinationiPhoneSimulator.class]) {
     return [[FBXCTestError
@@ -45,42 +59,23 @@
       fail:error];
   }
 
-  return [[self alloc] initWithConfiguration:configuration simulatorConfiguration:destination.simulatorConfiguration simulatorControl:simulatorControl logger:logger];
+  return [configuration isKindOfClass:FBApplicationTestConfiguration.class]
+    ? [self fetchSimulatorForApplicationTests:destination error:error]
+    : [self fetchSimulatorForLogicTest:destination error:error];
 }
 
-- (instancetype)initWithConfiguration:(FBXCTestConfiguration *)configuration simulatorConfiguration:(FBSimulatorConfiguration *)simulatorConfiguration simulatorControl:(FBSimulatorControl *)simulatorControl logger:(id<FBControlCoreLogger>)logger
+- (nullable FBSimulator *)fetchSimulatorForLogicTest:(FBXCTestDestinationiPhoneSimulator *)destination error:(NSError **)error
 {
-  self = [super init];
-  if (!self) {
-    return nil;
-  }
-
-  _configuration = configuration;
-  _simulatorConfiguration = simulatorConfiguration;
-  _simulatorControl = simulatorControl;
-  _logger = logger;
-
-  return self;
-}
-
-- (nullable FBSimulator *)fetchSimulatorForWithError:(NSError **)error
-{
-  return [self.configuration isKindOfClass:FBApplicationTestConfiguration.class]
-    ? [self fetchSimulatorForApplicationTestsWithError:error]
-    : [self fetchSimulatorForLogicTestWithError:error];
-}
-
-- (nullable FBSimulator *)fetchSimulatorForLogicTestWithError:(NSError **)error
-{
+  FBSimulatorConfiguration *configuration = [FBXCTestSimulatorFetcher configurationForDestination:destination];
   return [self.simulatorControl.pool
-    allocateSimulatorWithConfiguration:self.simulatorConfiguration
-    options:FBSimulatorAllocationOptionsReuse | FBSimulatorAllocationOptionsShutdownOnAllocate | FBSimulatorAllocationOptionsCreate
+    allocateSimulatorWithConfiguration:configuration
+    options:FBSimulatorAllocationOptionsCreate | FBSimulatorAllocationOptionsDeleteOnFree
     error:error];
 }
 
-- (nullable FBSimulator *)fetchSimulatorForApplicationTestsWithError:(NSError **)error
+- (nullable FBSimulator *)fetchSimulatorForApplicationTests:(FBXCTestDestinationiPhoneSimulator *)destination error:(NSError **)error
 {
-  FBSimulator *simulator = [self fetchSimulatorForLogicTestWithError:error];
+  FBSimulator *simulator = [self fetchSimulatorForLogicTest:destination error:error];
   if (!simulator) {
     return nil;
   }
@@ -89,7 +84,7 @@
     defaultConfiguration]
     withOptions:FBSimulatorBootOptionsEnableDirectLaunch];
 
-  if (![[FBSimulatorBootStrategy withConfiguration:bootConfiguration simulator:simulator] boot:error]) {
+  if (![[FBSimulatorBootStrategy strategyWithConfiguration:bootConfiguration simulator:simulator] boot:error]) {
     [self.logger logFormat:@"Failed to boot simulator: %@", *error];
     return nil;
   }
@@ -102,6 +97,20 @@
     return NO;
   }
   return YES;
+}
+
+#pragma mark Private 
+
++ (FBSimulatorConfiguration *)configurationForDestination:(FBXCTestDestinationiPhoneSimulator *)destination
+{
+  FBSimulatorConfiguration *configuration = [FBSimulatorConfiguration defaultConfiguration];
+  if (destination.model) {
+    configuration = [configuration withDeviceModel:destination.model];
+  }
+  if (destination.version) {
+    configuration = [configuration withOSNamed:destination.version];
+  }
+  return configuration;
 }
 
 @end

@@ -64,7 +64,7 @@
 
   _allSimulators = @[];
   _processFetcher = [FBSimulatorProcessFetcher fetcherWithProcessFetcher:[FBProcessFetcher new]];
-  _inflationStrategy = [FBSimulatorInflationStrategy forSet:self];
+  _inflationStrategy = [FBSimulatorInflationStrategy strategyForSet:self];
 
   return self;
 }
@@ -138,7 +138,7 @@
 
 - (nullable FBSimulator *)createSimulatorWithConfiguration:(FBSimulatorConfiguration *)configuration error:(NSError **)error
 {
-  NSString *targetName = configuration.deviceName;
+  FBDeviceModel model = configuration.device.model;
 
   // See if we meet the runtime requirements to create a Simulator with the given configuration.
   NSError *innerError = nil;
@@ -161,10 +161,10 @@
 
   // First, create the device.
   [self.logger.debug logFormat:@"Creating device with Type %@ Runtime %@", deviceType, runtime];
-  SimDevice *device = [self.deviceSet createDeviceWithType:deviceType runtime:runtime name:targetName error:&innerError];
+  SimDevice *device = [self.deviceSet createDeviceWithType:deviceType runtime:runtime name:model error:&innerError];
   if (!device) {
     return [[[[FBSimulatorError
-      describeFormat:@"Failed to create a simulator with the name %@, runtime %@, type %@", targetName, runtime, deviceType]
+      describeFormat:@"Failed to create a simulator with the name %@, runtime %@, type %@", model, runtime, deviceType]
       causedBy:innerError]
       logger:self.logger]
       fail:error];
@@ -336,7 +336,7 @@
 
 - (FBCoreSimulatorTerminationStrategy *)coreSimulatorTerminationStrategy
 {
-  return [FBCoreSimulatorTerminationStrategy withProcessFetcher:self.processFetcher logger:self.logger];
+  return [FBCoreSimulatorTerminationStrategy strategyWithProcessFetcher:self.processFetcher logger:self.logger];
 }
 
 - (FBSimulatorEraseStrategy *)eraseStrategy

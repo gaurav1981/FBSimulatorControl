@@ -30,7 +30,7 @@
 
 @implementation FBSimulatorTestRunStrategy
 
-+ (instancetype)strategyWithSimulator:(FBSimulator *)simulator configuration:(nullable FBTestLaunchConfiguration *)configuration  workingDirectory:(nullable NSString *)workingDirectory reporter:(nullable id<FBTestManagerTestReporter>)reporter
++ (instancetype)strategyWithSimulator:(FBSimulator *)simulator configuration:(FBTestLaunchConfiguration *)configuration  workingDirectory:(NSString *)workingDirectory reporter:(id<FBTestManagerTestReporter>)reporter
 {
   NSParameterAssert(simulator);
 
@@ -52,7 +52,7 @@
   return self;
 }
 
-- (nullable instancetype)connectAndStartWithError:(NSError **)error
+- (nullable FBTestManager *)connectAndStartWithError:(NSError **)error
 {
   NSParameterAssert(self.configuration.applicationLaunchConfiguration);
   NSParameterAssert(self.configuration.testBundlePath);
@@ -82,8 +82,7 @@
     logger:simulator.logger];
 
   FBTestManager *testManager = [testRunStrategy
-    startTestManagerWithAttributes:self.configuration.applicationLaunchConfiguration.arguments
-    environment:self.configuration.applicationLaunchConfiguration.environment
+    startTestManagerWithApplicationLaunchConfiguration:self.configuration.applicationLaunchConfiguration
     error:&innerError];
 
   if (!testManager) {
@@ -93,18 +92,7 @@
       fail:error];
   }
   [simulator.eventSink testmanagerDidConnect:testManager];
-  return self;
-}
-
-- (FBTestManagerResult *)waitUntilAllTestRunnersHaveFinishedTestingWithTimeout:(NSTimeInterval)timeout
-{
-  for (FBTestManager *testManager in self.simulator.resourceSink.testManagers.copy) {
-    FBTestManagerResult *result = [testManager waitUntilTestingHasFinishedWithTimeout:timeout];
-    if (!result.didEndSuccessfully) {
-      return result;
-    }
-  }
-  return FBTestManagerResult.success;
+  return testManager;
 }
 
 @end

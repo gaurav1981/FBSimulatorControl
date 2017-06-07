@@ -16,9 +16,9 @@ NS_ASSUME_NONNULL_BEGIN
 @class FBDevice;
 
 /**
- an FBVideoRecordingCommands implementation for devices
+ A FBVideoRecordingCommands implementation for devices
  */
-@interface FBDeviceVideoRecordingCommands : NSObject <FBVideoRecordingCommands>
+@interface FBDeviceVideoRecordingCommands : NSObject <FBVideoRecordingCommands, FBBitmapStreamingCommands>
 
 /**
  Construct a command instance for the given device.
@@ -26,7 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
  @param device the device to use.
  @return a new Video Recording Command Instance.
  */
-+ (instancetype)withDevice:(FBDevice *)device;
++ (instancetype)commandsWithDevice:(FBDevice *)device;
 
 @end
 

@@ -20,23 +20,29 @@
 
 #import "FBCompositeSimulatorEventSink.h"
 #import "FBMutableSimulatorEventSink.h"
-#import "FBSimulatorApplicationCommands.h"
 #import "FBSimulator+Helpers.h"
+#import "FBSimulatorAgentCommands.h"
+#import "FBSimulatorApplicationCommands.h"
+#import "FBSimulatorBridgeCommands.h"
 #import "FBSimulatorConfiguration+CoreSimulator.h"
 #import "FBSimulatorConfiguration.h"
 #import "FBSimulatorControlConfiguration.h"
+#import "FBSimulatorControlOperator.h"
 #import "FBSimulatorDiagnostics.h"
 #import "FBSimulatorError.h"
 #import "FBSimulatorEventRelay.h"
 #import "FBSimulatorEventSink.h"
+#import "FBSimulatorHIDEvent.h"
 #import "FBSimulatorHistoryGenerator.h"
+#import "FBSimulatorLifecycleCommands.h"
 #import "FBSimulatorLoggingEventSink.h"
 #import "FBSimulatorNotificationEventSink.h"
 #import "FBSimulatorPool.h"
 #import "FBSimulatorResourceManager.h"
 #import "FBSimulatorSet.h"
+#import "FBSimulatorSettingsCommands.h"
 #import "FBSimulatorVideoRecordingCommands.h"
-#import "FBSimulatorControlOperator.h"
+#import "FBSimulatorXCTestCommands.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wprotocol"
@@ -46,6 +52,7 @@
 
 @synthesize deviceOperator = _deviceOperator;
 @synthesize auxillaryDirectory = _auxillaryDirectory;
+@synthesize logger = _logger;
 
 #pragma mark Lifecycle
 
@@ -82,7 +89,7 @@
 - (instancetype)attachEventSinkCompositionWithLaunchdSimProcess:(nullable FBProcessInfo *)launchdSimProcess containerApplicationProcess:(nullable FBProcessInfo *)containerApplicationProcess
 {
   FBSimulatorHistoryGenerator *historyGenerator = [FBSimulatorHistoryGenerator forSimulator:self];
-  FBSimulatorNotificationEventSink *notificationSink = [FBSimulatorNotificationEventSink withSimulator:self];
+  FBSimulatorNotificationNameEventSink *notificationSink = [FBSimulatorNotificationNameEventSink withSimulator:self];
   FBSimulatorLoggingEventSink *loggingSink = [FBSimulatorLoggingEventSink withSimulator:self logger:self.logger];
   FBMutableSimulatorEventSink *mutableSink = [FBMutableSimulatorEventSink new];
   FBSimulatorDiagnostics *diagnosticsSink = [FBSimulatorDiagnostics withSimulator:self];
@@ -101,6 +108,15 @@
 }
 
 #pragma mark FBiOSTarget
+
+- (NSArray<Class> *)actionClasses
+{
+  return @[
+    FBAgentLaunchConfiguration.class,
+    FBSimulatorHIDEvent.class,
+    FBTestLaunchConfiguration.class,
+  ];
+}
 
 - (id<FBDeviceOperator>)deviceOperator
 {
@@ -130,12 +146,17 @@
   return FBiOSTargetTypeSimulator;
 }
 
-- (id<FBControlCoreConfiguration_Device>)deviceConfiguration
+- (FBArchitecture)architecture
+{
+  return self.configuration.device.simulatorArchitecture;
+}
+
+- (FBDeviceType *)deviceType
 {
   return self.configuration.device;
 }
 
-- (id<FBControlCoreConfiguration_OS>)osConfiguration
+- (FBOSVersion *)osVersion
 {
   return self.configuration.os;
 }
@@ -276,8 +297,14 @@
 + (NSArray *)commandRespondersForSimulator:(FBSimulator *)simulator
 {
   return @[
-    [FBSimulatorApplicationCommands withSimulator:simulator],
-    [FBSimulatorVideoRecordingCommands withSimulator:simulator],
+    [FBSimulatorAgentCommands commandsWithSimulator:simulator],
+    [FBSimulatorApplicationCommands commandsWithSimulator:simulator],
+    [FBSimulatorBridgeCommands commandsWithSimulator:simulator],
+    [FBSimulatorKeychainCommands commandsWithSimulator:simulator],
+    [FBSimulatorLifecycleCommands commandsWithSimulator:simulator],
+    [FBSimulatorSettingsCommands commandWithSimulator:simulator],
+    [FBSimulatorVideoRecordingCommands commandsWithSimulator:simulator],
+    [FBSimulatorXCTestCommands commandsWithSimulator:simulator],
   ];
 }
 

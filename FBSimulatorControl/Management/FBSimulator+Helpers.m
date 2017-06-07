@@ -17,20 +17,16 @@
 #import "FBSimulator+Private.h"
 #import "FBSimulatorError.h"
 #import "FBSimulatorHistory+Queries.h"
-#import "FBSimulatorInteraction.h"
 #import "FBSimulatorLaunchCtl.h"
 #import "FBSimulatorPool.h"
 #import "FBSimulatorProcessFetcher.h"
 #import "FBSimulatorSet.h"
 
+#import <AppKit/AppKit.h>
+
 @implementation FBSimulator (Helpers)
 
 #pragma mark Properties
-
-- (FBSimulatorInteraction *)interact
-{
-  return [FBSimulatorInteraction withSimulator:self];
-}
 
 - (FBSimulatorLaunchCtl *)launchctl
 {
@@ -102,110 +98,22 @@
   return [self.set eraseSimulator:self error:error];
 }
 
-- (FBApplicationDescriptor *)installedApplicationWithBundleID:(NSString *)bundleID error:(NSError **)error
+- (BOOL)focusWithError:(NSError **)error
 {
-  NSParameterAssert(bundleID);
+  NSArray *apps = NSWorkspace.sharedWorkspace.runningApplications;
+  NSPredicate *matchingPid = [NSPredicate predicateWithFormat:@"processIdentifier = %@", @(self.containerApplication.processIdentifier)];
+  NSRunningApplication *app = [apps filteredArrayUsingPredicate:matchingPid].firstObject;
+  if (!app) {
+    return [[FBSimulatorError describeFormat:@"Simulator application for %@ is not running", self.udid] failBool:error];
+  }
 
-  NSError *innerError = nil;
-  NSDictionary *appInfo = [self appInfo:bundleID error:&innerError];
-  if (!appInfo) {
-    return [FBSimulatorError failWithError:innerError errorOut:error];
-  }
-  NSString *appPath = appInfo[ApplicationPathKey];
-  NSString *typeString = appInfo[ApplicationTypeKey];
-  FBApplicationDescriptor *application = [FBApplicationDescriptor applicationWithPath:appPath installTypeString:typeString error:&innerError];
-  if (!application) {
-    return [[[[FBSimulatorError
-      describeFormat:@"Failed to get App Path of %@ at %@", bundleID, appPath]
-      inSimulator:self]
-      causedBy:innerError]
-      fail:error];
-  }
-  return application;
+  return [app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
 }
-
-- (BOOL)isSystemApplicationWithBundleID:(NSString *)bundleID error:(NSError **)error
-{
-  NSParameterAssert(bundleID);
-
-  NSError *innerError = nil;
-  NSDictionary *appInfo = [self appInfo:bundleID error:&innerError];
-  if (!appInfo) {
-    return [FBSimulatorError failBoolWithError:innerError errorOut:error];
-  }
-
-  return [appInfo[ApplicationTypeKey] isEqualToString:@"System"];
-}
-
-- (NSString *)homeDirectoryOfApplicationWithBundleID:(NSString *)bundleID error:(NSError **)error
-{
-  NSParameterAssert(bundleID);
-
-  NSError *innerError = nil;
-  FBProcessInfo *runningApplication = [self runningApplicationWithBundleID:bundleID error:&innerError];
-  if (!runningApplication) {
-    return [FBSimulatorError failWithError:innerError errorOut:error];
-  }
-  NSString *homeDirectory = runningApplication.environment[@"HOME"];
-  if (![NSFileManager.defaultManager fileExistsAtPath:homeDirectory]) {
-    return [[FBSimulatorError describeFormat:@"App Home Directory does not exist at path %@", homeDirectory] fail:error];
-  }
-
-  return homeDirectory;
-}
-
-- (FBProcessInfo *)runningApplicationWithBundleID:(NSString *)bundleID error:(NSError **)error
-{
-  NSParameterAssert(bundleID);
-
-  NSError *innerError = nil;
-  FBApplicationDescriptor *application = [self installedApplicationWithBundleID:bundleID error:&innerError];
-  if (!application) {
-    return [FBSimulatorError failWithError:innerError errorOut:error];
-  }
-
-  return [[[self
-    launchdSimSubprocesses]
-    filteredArrayUsingPredicate:[FBSimulator predicateForApplicationProcessOfApplication:application]]
-    firstObject];
-}
-
 
 + (NSDictionary<NSString *, id> *)simulatorApplicationPreferences
 {
   NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Preferences/com.apple.iphonesimulator.plist"];
   return [NSDictionary dictionaryWithContentsOfFile:path];
-}
-
-#pragma mark Private
-
-- (NSDictionary<NSString *, id> *)appInfo:(NSString *)bundleID error:(NSError **)error
-{
-  NSError *innerError = nil;
-  NSDictionary *appInfo = [self.device propertiesOfApplication:bundleID error:&innerError];
-  if (!appInfo) {
-    NSDictionary *installedApps = [self.device installedAppsWithError:nil];
-    return [[[[[FBSimulatorError
-      describeFormat:@"Application with bundle ID '%@' is not installed", bundleID]
-      extraInfo:@"installed_apps" value:installedApps.allKeys]
-      inSimulator:self]
-      causedBy:innerError]
-      fail:error];
-  }
-  return appInfo;
-}
-
-+ (NSPredicate *)predicateForApplicationProcessOfApplication:(FBApplicationDescriptor *)application
-{
-  NSPredicate *launchPathPredicate = [FBProcessFetcher processesWithLaunchPath:application.binary.path];
-  NSPredicate *environmentPredicate = [NSPredicate predicateWithBlock:^ BOOL (NSProcessInfo *processInfo, NSDictionary *_) {
-    return [processInfo.environment[@"XPC_SERVICE_NAME"] containsString:application.bundleID];
-  }];
-
-  return [NSCompoundPredicate orPredicateWithSubpredicates:@[
-    launchPathPredicate,
-    environmentPredicate
-  ]];
 }
 
 @end

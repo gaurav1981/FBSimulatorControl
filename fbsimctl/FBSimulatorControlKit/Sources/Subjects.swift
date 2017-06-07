@@ -54,25 +54,25 @@ struct SimpleSubject : EventReporterSubject {
   }
 
   var jsonDescription: JSON { get {
-    return JSON.jDictionary([
-      JSONKeys.EventName.rawValue : JSON.jString(self.eventName.rawValue),
-      JSONKeys.EventType.rawValue : JSON.jString(self.eventType.rawValue),
+    return JSON.dictionary([
+      JSONKeys.EventName.rawValue : JSON.string(self.eventName.rawValue),
+      JSONKeys.EventType.rawValue : JSON.string(self.eventType.rawValue),
       JSONKeys.Subject.rawValue : self.subject.jsonDescription,
-      JSONKeys.Timestamp.rawValue : JSON.jNumber(NSNumber(value: round(Date().timeIntervalSince1970) as Double)),
+      JSONKeys.Timestamp.rawValue : JSON.number(NSNumber(value: round(Date().timeIntervalSince1970) as Double)),
     ])
   }}
 
   var shortDescription: String { get {
     switch self.eventType {
-    case .Discrete:
+    case .discrete:
       return self.subject.description
     default:
-      return "\(self.eventName) \(self.eventType): \(self.subject.description)"
+      return "\(self.eventName.rawValue) \(self.eventType.rawValue): \(self.subject.description)"
     }
   }}
 
   var description: String { get {
-      return self.shortDescription
+    return self.shortDescription
   }}
 }
 
@@ -85,7 +85,7 @@ struct ControlCoreSubject : EventReporterSubject {
 
   var jsonDescription: JSON { get {
     guard let json = try? JSON.encode(self.value.jsonSerializableRepresentation() as AnyObject) else {
-      return JSON.jNull
+      return JSON.null
     }
     return json
   }}
@@ -125,18 +125,18 @@ struct iOSTargetWithSubject : EventReporterSubject {
   }
 
   var jsonDescription: JSON { get {
-    return JSON.jDictionary([
-      JSONKeys.EventName.rawValue : JSON.jString(self.eventName.rawValue),
-      JSONKeys.EventType.rawValue : JSON.jString(self.eventType.rawValue),
+    return JSON.dictionary([
+      JSONKeys.EventName.rawValue : JSON.string(self.eventName.rawValue),
+      JSONKeys.EventType.rawValue : JSON.string(self.eventType.rawValue),
       JSONKeys.Target.rawValue : self.targetSubject.jsonDescription,
       JSONKeys.Subject.rawValue : self.subject.jsonDescription,
-      JSONKeys.Timestamp.rawValue : JSON.jNumber(NSNumber(value: round(self.timestamp.timeIntervalSince1970) as Double)),
+      JSONKeys.Timestamp.rawValue : JSON.number(NSNumber(value: round(self.timestamp.timeIntervalSince1970) as Double)),
     ])
   }}
 
   var description: String { get {
     switch self.eventType {
-    case .Discrete:
+    case .discrete:
       return "\(self.targetSubject): \(self.eventName.rawValue): \(self.subject.description)"
     default:
       return ""
@@ -149,12 +149,12 @@ struct LogSubject : EventReporterSubject {
   let level: Int32
 
   var jsonDescription: JSON { get {
-    return JSON.jDictionary([
-      JSONKeys.EventName.rawValue : JSON.jString(EventName.Log.rawValue),
-      JSONKeys.EventType.rawValue : JSON.jString(EventType.Discrete.rawValue),
-      JSONKeys.Level.rawValue : JSON.jString(self.levelString),
-      JSONKeys.Subject.rawValue : JSON.jString(self.logString),
-      JSONKeys.Timestamp.rawValue : JSON.jNumber(NSNumber(value: round(Date().timeIntervalSince1970) as Double)),
+    return JSON.dictionary([
+      JSONKeys.EventName.rawValue : JSON.string(EventName.log.rawValue),
+      JSONKeys.EventType.rawValue : JSON.string(EventType.discrete.rawValue),
+      JSONKeys.Level.rawValue : JSON.string(self.levelString),
+      JSONKeys.Subject.rawValue : JSON.string(self.logString),
+      JSONKeys.Timestamp.rawValue : JSON.number(NSNumber(value: round(Date().timeIntervalSince1970) as Double)),
     ])
   }}
 
@@ -184,7 +184,7 @@ struct CompositeSubject: EventReporterSubject {
   }}
 
   var jsonDescription: JSON { get {
-    return JSON.jArray(self.array.map { $0.jsonDescription } )
+    return JSON.array(self.array.map { $0.jsonDescription } )
   }}
 
   var description: String { get {
@@ -200,7 +200,7 @@ struct StringsSubject: EventReporterSubject {
   }
 
   var jsonDescription: JSON { get {
-    return JSON.jArray(self.strings.map { $0.jsonDescription } )
+    return JSON.array(self.strings.map { $0.jsonDescription } )
   }}
 
   var description: String { get {
@@ -208,9 +208,37 @@ struct StringsSubject: EventReporterSubject {
   }}
 }
 
+extension Record : EventReporterSubject {
+  public var jsonDescription: JSON {
+    var contents: [String : JSON] = [:]
+    switch self {
+    case .start(let maybePath):
+      contents["start"] = JSON.bool(true)
+      if let path = maybePath {
+        contents["path"] = JSON.string(path)
+      } else {
+        contents["path"] = JSON.null
+      }
+    case .stop:
+      contents["start"] = JSON.bool(false)
+    }
+    return JSON.dictionary(contents)
+  }
+
+  public var description: String { get {
+    switch self {
+    case .start(let maybePath):
+      let destination = maybePath ?? "Default Destination"
+      return "Start Recording \(destination)"
+    case .stop:
+      return "Stop Recording"
+    }
+  }}
+}
+
 extension String : EventReporterSubject {
   public var jsonDescription: JSON { get {
-    return JSON.jString(self)
+    return JSON.string(self)
   }}
 
   public var description: String { get {
@@ -220,6 +248,6 @@ extension String : EventReporterSubject {
 
 extension Bool : EventReporterSubject {
   public var jsonDescription: JSON { get {
-    return JSON.jNumber(NSNumber(value: self as Bool))
+    return JSON.number(NSNumber(value: self as Bool))
   }}
 }

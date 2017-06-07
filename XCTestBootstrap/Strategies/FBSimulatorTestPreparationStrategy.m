@@ -15,10 +15,9 @@
 #import "FBProductBundle.h"
 #import "FBTestBundle.h"
 #import "FBTestConfiguration.h"
-#import "FBTestRunnerConfiguration.h"
 #import "FBTestLaunchConfiguration.h"
+#import "FBTestRunnerConfiguration.h"
 #import "XCTestBootstrapError.h"
-
 
 @interface FBSimulatorTestPreparationStrategy ()
 
@@ -86,9 +85,11 @@
 
   // Prepare XCTest bundle
   NSUUID *sessionIdentifier = [NSUUID UUID];
-  FBTestBundle *testBundle = [[[[[[FBTestBundleBuilder builderWithFileManager:self.fileManager]
+  FBTestBundle *testBundle = [[[[[[[[FBTestBundleBuilder builderWithFileManager:self.fileManager]
     withBundlePath:self.testLaunchConfiguration.testBundlePath]
     withUITesting:self.testLaunchConfiguration.shouldInitializeUITesting]
+    withTestsToSkip:self.testLaunchConfiguration.testsToSkip]
+    withTestsToRun:self.testLaunchConfiguration.testsToRun]
     withWorkingDirectory:self.workingDirectory]
     withSessionIdentifier:sessionIdentifier]
     buildWithError:&innerError];

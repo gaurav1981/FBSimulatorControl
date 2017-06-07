@@ -18,6 +18,7 @@
 
 #import "FBiOSDeviceOperator.h"
 #import "FBDeviceVideoRecordingCommands.h"
+#import "FBDeviceXCTestCommands.h"
 #import "FBDeviceSet+Private.h"
 #import "FBAMDevice.h"
 
@@ -30,9 +31,12 @@ int (*FBAMDeviceStartSession)(CFTypeRef device);
 int (*FBAMDeviceStopSession)(CFTypeRef device);
 int (*FBAMDServiceConnectionGetSocket)(CFTypeRef connection);
 int (*FBAMDServiceConnectionInvalidate)(CFTypeRef connection);
-int (*FBAMDeviceSecureStartService)(CFTypeRef device, CFStringRef service_name, CFDictionaryRef userinfo, void *handle);
+int (*FBAMDeviceSecureStartService)(CFTypeRef device, CFStringRef service_name, _Nullable CFDictionaryRef userinfo, void *handle);
 _Nullable CFStringRef (*_Nonnull FBAMDeviceGetName)(CFTypeRef device);
 _Nullable CFStringRef (*_Nonnull FBAMDeviceCopyValue)(CFTypeRef device, _Nullable CFStringRef domain, CFStringRef name);
+int (*FBAMDeviceSecureTransferPath)(int arg0, CFTypeRef arg1, CFURLRef arg2, CFDictionaryRef arg3, void *_Nullable arg4, int arg5);
+int (*FBAMDeviceSecureInstallApplication)(int arg0, CFTypeRef arg1, CFURLRef arg2, CFDictionaryRef arg3,  void *_Nullable arg4, int arg5);
+int (*FBAMDeviceSecureUninstallApplication)(int arg0, CFTypeRef arg1, CFStringRef arg2, int arg3, void *_Nullable arg4, int arg5);
 void (*FBAMDSetLogLevel)(int32_t level);
 
 #pragma clang diagnostic push
@@ -42,8 +46,10 @@ void (*FBAMDSetLogLevel)(int32_t level);
 @implementation FBDevice
 
 @synthesize deviceOperator = _deviceOperator;
-@synthesize recordingCommand = _recordingCommand;
 @synthesize dvtDevice = _dvtDevice;
+@synthesize logger = _logger;
+@synthesize recordingCommand = _recordingCommand;
+@synthesize xcTestCommand = _xcTestCommand;
 
 #pragma mark Initializers
 
@@ -61,12 +67,14 @@ void (*FBAMDSetLogLevel)(int32_t level);
   return self;
 }
 
-- (CFTypeRef)startTestManagerServiceWithError:(NSError **)error
-{
-  return [self.amDevice startTestManagerServiceWithError:error];
-}
-
 #pragma mark FBiOSTarget
+
+- (NSArray<Class> *)actionClasses
+{
+  return @[
+    FBTestLaunchConfiguration.class,
+  ];
+}
 
 - (NSString *)udid
 {
@@ -76,6 +84,11 @@ void (*FBAMDSetLogLevel)(int32_t level);
 - (NSString *)name
 {
   return self.amDevice.deviceName;
+}
+
+- (FBArchitecture)architecture
+{
+  return self.amDevice.architecture;
 }
 
 - (NSString *)auxillaryDirectory
@@ -106,12 +119,12 @@ void (*FBAMDSetLogLevel)(int32_t level);
   return nil;
 }
 
-- (id<FBControlCoreConfiguration_Device>)deviceConfiguration
+- (FBDeviceType *)deviceType
 {
   return self.amDevice.deviceConfiguration;
 }
 
-- (id<FBControlCoreConfiguration_OS>)osConfiguration
+- (FBOSVersion *)osVersion
 {
   return self.amDevice.osConfiguration;
 }
@@ -188,10 +201,13 @@ void (*FBAMDSetLogLevel)(int32_t level);
 - (id)forwardingTargetForSelector:(SEL)selector
 {
   // Try the Recording Command first, constructing a DeviceOperator is expensive.
-  if ([self.recordingCommand respondsToSelector:selector]) {
+  if ([FBDeviceVideoRecordingCommands instancesRespondToSelector:selector]) {
     return self.recordingCommand;
   }
-  if ([self.deviceOperator respondsToSelector:selector]) {
+  if ([FBDeviceXCTestCommands instancesRespondToSelector:selector]) {
+    return self.xcTestCommand;
+  }
+  if ([FBiOSDeviceOperator instancesRespondToSelector:selector]) {
     return self.deviceOperator;
   }
   return [super forwardingTargetForSelector:selector];
@@ -200,9 +216,17 @@ void (*FBAMDSetLogLevel)(int32_t level);
 - (FBDeviceVideoRecordingCommands *)recordingCommand
 {
   if (!_recordingCommand) {
-    _recordingCommand = [FBDeviceVideoRecordingCommands withDevice:self];
+    _recordingCommand = [FBDeviceVideoRecordingCommands commandsWithDevice:self];
   }
   return _recordingCommand;
+}
+
+- (id<FBXCTestCommands>)xcTestCommand
+{
+  if (!_xcTestCommand) {
+    _xcTestCommand = [FBDeviceXCTestCommands commandsWithDevice:self];
+  }
+  return _xcTestCommand;
 }
 
 @end

@@ -12,6 +12,7 @@
 #import <FBControlCore/FBiOSTarget.h>
 #import <FBControlCore/FBJSONConversion.h>
 #import <FBControlCore/FBControlCoreConfigurationVariants.h>
+#import <FBControlCore/FBArchitecture.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -30,6 +31,24 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)allTargets;
 
 /**
+ A Query that matches the given Names.
+ 
+ @param names the names to match against.
+ @return a new Target Query.
+ */
++ (instancetype)names:(NSArray<NSString *> *)names;
+- (instancetype)names:(NSArray<NSString *> *)names;
+
+/**
+ A Query that matches the given Name.
+
+ @param name the name to match against.
+ @return a new Target Query.
+ */
++ (instancetype)named:(NSString *)name;
+- (instancetype)named:(NSString *)name;
+
+/**
  A Query that matches the given UDIDs.
 
  @param udids the UDIDs to match against.
@@ -39,13 +58,49 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)udids:(NSArray<NSString *> *)udids;
 
 /**
+ A Query that matches the given UDIDs.
+
+ @param udid the UDID to match against.
+ @return a new Target Query.
+ */
++ (instancetype)udid:(NSString *)udid;
+- (instancetype)udid:(NSString *)udid;
+
+/**
  A Query that matches the given States.
 
- @param states the UDIDs to match against.
+ @param states the States to match against, as an NSIndexSet of FBSimulatorState enums.
  @return a new Target Query.
  */
 + (instancetype)states:(NSIndexSet *)states;
 - (instancetype)states:(NSIndexSet *)states;
+
+/**
+ A Query that matches the given State.
+
+ @param state the State to match against.
+ @return a new Target Query.
+ */
++ (instancetype)state:(FBSimulatorState)state;
+- (instancetype)state:(FBSimulatorState)state;
+
+/**
+ A Query that matches the given Architectures.
+
+ @param architectures the Architectures to match against.
+ @return a new Target Query.
+ */
++ (instancetype)architectures:(NSArray<FBArchitecture> *)architectures;
+- (instancetype)architectures:(NSArray<FBArchitecture> *)architectures;
+
+/**
+ A Query that matches the given Architecture.
+
+ @param architecture the Architecture to match against.
+ @return a new Target Query.
+ */
++ (instancetype)architecture:(FBArchitecture)architecture;
+- (instancetype)architecture:(FBArchitecture)architecture;
 
 /**
  A Query that matches the given Target Tyep.
@@ -62,17 +117,35 @@ NS_ASSUME_NONNULL_BEGIN
  @param osVersions the OS Versions to match against.
  @return a new Target Query.
  */
-+ (instancetype)osVersions:(NSArray<id<FBControlCoreConfiguration_OS>> *)osVersions;
-- (instancetype)osVersions:(NSArray<id<FBControlCoreConfiguration_OS>> *)osVersions;
++ (instancetype)osVersions:(NSArray<FBOSVersionName> *)osVersions;
+- (instancetype)osVersions:(NSArray<FBOSVersionName> *)osVersions;
 
 /**
- A Query that matches the given Devices.
+ A Query that matches the given OS Version.
 
- @param devices the Devices to match against.
+ @param osVersion the OS Version to match against.
  @return a new Target Query.
  */
-+ (instancetype)devices:(NSArray<id<FBControlCoreConfiguration_Device>> *)devices;
-- (instancetype)devices:(NSArray<id<FBControlCoreConfiguration_Device>> *)devices;
++ (instancetype)osVersion:(FBOSVersionName)osVersion;
+- (instancetype)osVersion:(FBOSVersionName)osVersion;
+
+/**
+ A Query that matches the given Device Models.
+
+ @param devices the Device Models to match against.
+ @return a new Target Query.
+ */
++ (instancetype)devices:(NSArray<FBDeviceModel> *)devices;
+- (instancetype)devices:(NSArray<FBDeviceModel> *)devices;
+
+/**
+ A Query that matches the given Device Model
+
+ @param device the Device to match against.
+ @return a new Target Query.
+ */
++ (instancetype)device:(FBDeviceModel)device;
+- (instancetype)device:(FBDeviceModel)device;
 
 /**
  A Query that matches the given Range.
@@ -100,6 +173,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)excludesAll:(FBiOSTargetType)targetType;
 
 /**
+ The Names to Match against
+ An Empty Set means that no Name filtering will occur.
+ */
+@property (nonatomic, readonly, copy) NSSet<NSString *> *names;
+
+/**
  The UDIDs to Match against.
  An Empty Set means that no UDID filtering will occur.
  */
@@ -112,6 +191,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy) NSIndexSet *states;
 
 /**
+ The Architectures to Match against.
+ An Empty Set means that no Architecture filtering will occur.
+ */
+@property (nonatomic, readonly, copy) NSSet<FBArchitecture> *architectures;
+
+/**
  The Target Types to match against.
  FBiOSTargetTypeNone means no Target Type filtering with occur.
  */
@@ -121,13 +206,13 @@ NS_ASSUME_NONNULL_BEGIN
  The OS Versions to match against.
  An Empty Set means that no OS Version filtering will occur.
  */
-@property (nonatomic, readonly, copy) NSSet<id<FBControlCoreConfiguration_OS>> *osVersions;
+@property (nonatomic, readonly, copy) NSSet<FBOSVersionName> *osVersions;
 
 /**
  The Device Types to match against.
  An Empty Set means that no Device filtering will occur.
  */
-@property (nonatomic, readonly, copy) NSSet<id<FBControlCoreConfiguration_Device>> *devices;
+@property (nonatomic, readonly, copy) NSSet<FBDeviceModel> *devices;
 
 /**
  The Range of Simulators to match against when fetched.

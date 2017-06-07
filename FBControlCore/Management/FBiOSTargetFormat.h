@@ -13,40 +13,47 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef NSString *FBiOSTargetFormatKey NS_STRING_ENUM;
+
 /**
  The UDID of the iOS Target.
  */
-extern NSString *const FBiOSTargetFormatUDID;
+extern FBiOSTargetFormatKey const FBiOSTargetFormatUDID;
 
 /**
  The User-Provided Name of the Target.
  */
-extern NSString *const FBiOSTargetFormatName;
+extern FBiOSTargetFormatKey const FBiOSTargetFormatName;
 
 /**
  The Apple Device Name.
  */
-extern NSString *const FBiOSTargetFormatDeviceName;
+extern FBiOSTargetFormatKey const FBiOSTargetFormatModel;
 
 /**
  The OS Version of the Target.
  */
-extern NSString *const FBiOSTargetFormatOSVersion;
+extern FBiOSTargetFormatKey const FBiOSTargetFormatOSVersion;
 
 /**
  The State of the Target.
  */
-extern NSString *const FBiOSTargetFormatState;
+extern FBiOSTargetFormatKey const FBiOSTargetFormatState;
+
+/**
+ The Architecture of the Target.
+ */
+extern FBiOSTargetFormatKey const FBiOSTargetFormatArchitecture;
 
 /**
  The Process Identifier of the Target where applicable.
  */
-extern NSString *const FBiOSTargetFormatProcessIdentifier;
+extern FBiOSTargetFormatKey const FBiOSTargetFormatProcessIdentifier;
 
 /**
  The Process Identifier of the Target's Container Application where applicable.
  */
-extern NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier;
+extern FBiOSTargetFormatKey const FBiOSTargetFormatContainerApplicationProcessIdentifier;
 
 @protocol FBiOSTarget;
 
@@ -61,7 +68,15 @@ extern NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier;
  @param fields the fields to describe with.
  @return a new Target Format.
  */
-+ (instancetype)formatWithFields:(NSArray<NSString *> *)fields;
++ (instancetype)formatWithFields:(NSArray<FBiOSTargetFormatKey> *)fields;
+
+/**
+ Creates and returns a new Target Format, using a 'Format String' to represent the components.
+
+ @param string the format string to create the format from.
+ @return error an error out for any error that occurs.
+ */
++ (nullable instancetype)formatWithString:(NSString *)string error:(NSError **)error;
 
 /**
  Creates and returns the Default Target Format.
@@ -80,7 +95,7 @@ extern NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier;
 /**
  An ordering of the fields to format targets with.
  */
-@property (nonatomic, copy, readonly) NSArray<NSString *> *fields;
+@property (nonatomic, copy, readonly) NSArray<FBiOSTargetFormatKey> *fields;
 
 /**
  Returns a new Target Description by appending fields.
@@ -88,7 +103,7 @@ extern NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier;
  @param fields the fields to append.
  @return a new Target Description with the fields applied.
  */
-- (instancetype)appendFields:(NSArray<NSString *> *)fields;
+- (instancetype)appendFields:(NSArray<FBiOSTargetFormatKey> *)fields;
 
 /**
  Returns a new Target Description by appending a field.
@@ -96,7 +111,7 @@ extern NSString *const FBiOSTargetFormatContainerApplicationProcessIdentifier;
  @param field the field to append.
  @return a new Target Description with the field applied.
  */
-- (instancetype)appendField:(NSString *)field;
+- (instancetype)appendField:(FBiOSTargetFormatKey)field;
 
 /**
  Describes the Target using the reciver's format.

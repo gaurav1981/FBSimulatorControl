@@ -9,8 +9,8 @@
 
 #import <Foundation/Foundation.h>
 
-@protocol FBControlCoreConfiguration_Device;
-@protocol FBControlCoreConfiguration_OS;
+@class FBOSVersion;
+@class FBDeviceType;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -64,17 +64,17 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  The FBControlCore Configuration Variant representing the Device.
  */
-@property (nonatomic, nullable, copy, readonly) id<FBControlCoreConfiguration_Device> deviceConfiguration;
+@property (nonatomic, nullable, copy, readonly) FBDeviceType *deviceConfiguration;
 
 /**
  The FBControlCore Configuration Variant representing the Operating System.
  */
-@property (nonatomic, nullable, copy, readonly) id<FBControlCoreConfiguration_OS> osConfiguration;
+@property (nonatomic, nullable, copy, readonly) FBOSVersion *osConfiguration;
 
 /**
  The Architechture of the Device's CPU.
  */
-@property (nonatomic, nullable, copy, readonly) NSString *architechture;
+@property (nonatomic, nullable, copy, readonly) NSString *architecture;
 
 /**
  Starts test manager daemon service
